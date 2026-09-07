@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GPIO settings</title><link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='4') }}"></head>
+<body class="admin-page"><main class="panel">
+  <div class="panel-header"><h1>GPIO events</h1><a href="{{ url_for('admin') }}">Back to controls</a></div>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <p>{% if gpio_available %}GPIO controls are active.{% else %}GPIO hardware is unavailable on this host.{% endif %}</p>
+  <form action="{{ url_for('set_gpio_paused') }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><label><input name="paused" type="checkbox" {% if paused %}checked{% endif %}> Pause GPIO events</label><button type="submit">Save pause setting</button></form>
+  <h2>Link a BCM pin to an event</h2>
+  <form action="{{ url_for('add_gpio_mapping') }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><label>BCM pin <input name="pin" inputmode="numeric" min="0" max="27" type="number" required></label><label>Event <select name="event"><option value="complete-room">Complete room</option></select></label><button type="submit">Link pin</button></form>
+  <h2>Linked pins</h2><ol class="hint-history">{% for mapping in mappings %}<li><span class="hint-count">BCM {{ mapping.pin }}</span><span>{{ mapping.event }}</span><form action="{{ url_for('delete_gpio_mapping', pin=mapping.pin) }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><button type="submit">Unlink</button></form></li>{% else %}<li>No GPIO pins linked.</li>{% endfor %}</ol>
+  <h2>Recent GPIO activity</h2><ol class="hint-history">{% for entry in activity %}<li><span class="hint-count">BCM {{ entry.pin }}</span><span>{{ entry.event }} — {% if entry.accepted %}triggered{% else %}ignored{% endif %}</span><time>{{ entry.triggered_at }} UTC</time></li>{% else %}<li>No GPIO activity yet.</li>{% endfor %}</ol>
+</main></body></html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Display settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='2') }}">
+  </head>
+  <body class="admin-page">
+    <main class="panel">
+      <div class="panel-header">
+        <h1>Display settings</h1>
+        <a href="{{ url_for('admin') }}">Back to controls</a>
+      </div>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form method="post" enctype="multipart/form-data">
+        <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+        <label>Heading <input name="title" maxlength="80" value="{{ settings.title }}" required></label>
+        <label>Description <textarea name="message" maxlength="500">{{ settings.message }}</textarea></label>
+        <fieldset class="colour-control">
+          <legend>Background colour</legend>
+          <input id="background-picker" type="color" value="{{ settings.background_colour }}">
+          <label for="background-hex">Hex value</label>
+          <input id="background-hex" name="background_colour" pattern="#[0-9a-fA-F]{6}" value="{{ settings.background_colour }}" required>
+          <button data-accept-colour="background" type="button">Accept background colour</button>
+          <span id="background-preview" class="colour-preview" style="background: {{ settings.background_colour }}" aria-label="Background colour preview"></span>
+        </fieldset>
+        <fieldset class="colour-control">
+          <legend>Accent colour</legend>
+          <input id="accent-picker" type="color" value="{{ settings.accent_colour }}">
+          <label for="accent-hex">Hex value</label>
+          <input id="accent-hex" name="accent_colour" pattern="#[0-9a-fA-F]{6}" value="{{ settings.accent_colour }}" required>
+          <button data-accept-colour="accent" type="button">Accept accent colour</button>
+          <span id="accent-preview" class="colour-preview" style="background: {{ settings.accent_colour }}" aria-label="Accent colour preview"></span>
+        </fieldset>
+        <label>Background image <input name="background_image" accept=".gif,.jpeg,.jpg,.png,.webp,image/gif,image/jpeg,image/png,image/webp" type="file"></label>
+        {% if settings.background_image %}
+          <p>Current image: <a href="{{ url_for('uploaded_file', filename=settings.background_image) }}" target="_blank">{{ settings.background_image }}</a></p>
+          <label><input name="remove_background_image" type="checkbox"> Remove current background image</label>
+        {% endif %}
+        <button type="submit">Save display settings</button>
+      </form>
+    </main>
+    <script src="{{ url_for('static', filename='settings.js', v='1') }}"></script>
+  </body>
+</html>

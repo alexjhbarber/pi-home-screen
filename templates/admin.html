@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Home screen admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='screen.css') }}">
+  </head>
+  <body class="admin-page">
+    <main class="panel">
+      <div class="panel-header">
+        <h1>Home screen admin</h1>
+        <div class="header-actions">
+          <button id="open-preview" type="button">Open live preview</button>
+          <form action="{{ url_for('admin_logout') }}" method="post">
+            <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+            <button type="submit">Sign out</button>
+          </form>
+        </div>
+      </div>
+      <nav class="admin-nav" aria-label="Admin sections">
+        <a href="{{ url_for('settings') }}">Settings</a>
+        <a href="{{ url_for('statistics') }}">Stats</a>
+        <a href="{{ url_for('gpio_settings') }}">GPIO</a>
+      </nav>
+      <p><a href="{{ url_for('settings') }}">Change display text, colours, and background image.</a></p>
+      <p id="status" role="status"></p>
+      <section>
+        <h2>60-minute timer</h2>
+        <form action="{{ url_for('update_timer', action='start') }}" method="post" class="inline-form">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+          <button data-timer-action="start" type="submit">Start 60-minute timer</button>
+        </form>
+        <form action="{{ url_for('update_timer', action='reset') }}" method="post" class="inline-form">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+          <button data-timer-action="reset" type="submit">Reset timer</button>
+        </form>
+      </section>
+      <section>
+        <h2>Room completion</h2>
+        <form action="{{ url_for('complete_room') }}" method="post" class="inline-form">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+          <button id="complete-room" type="submit">Complete room</button>
+        </form>
+      </section>
+      <section>
+        <h2>Two-minute announcement</h2>
+        <form id="announcement-form" action="{{ url_for('send_announcement') }}" method="post">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+          <label>Message <textarea name="message" maxlength="500" required></textarea></label>
+          <button id="send-hint" type="submit">Send for 2 minutes</button>
+        </form>
+        <h3>Hints sent this session</h3>
+        <ol id="hint-history" class="hint-history">
+          {% for hint in hints %}
+            <li>
+              <span class="hint-count">Hint {{ loop.index }}</span>
+              <span>{{ hint.message }}</span>
+              <time class="hint-timer" datetime="PT{{ hint.timer_remaining_seconds }}S">Timer: {{ "%02d:%02d"|format(hint.timer_remaining_seconds // 60, hint.timer_remaining_seconds % 60) }}</time>
+              <time datetime="{{ hint.given_at }}">{{ hint.given_at }} UTC</time>
+            </li>
+          {% else %}
+            <li id="no-hints">No hints sent yet.</li>
+          {% endfor %}
+        </ol>
+      </section>
+      <section>
+        <h2>Automatic hint</h2>
+        <p>Send one hint if the room is still incomplete when the timer reaches the selected time.</p>
+        <form action="{{ url_for('set_automatic_hint') }}" method="post">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+          <label>Send when minutes remain <input name="remaining_minutes" min="0" max="59" type="number" value="{{ settings.auto_hint_remaining_minutes if settings.auto_hint_remaining_minutes is not none else '' }}" required></label>
+          <label>Hint <textarea name="message" maxlength="500" required>{{ settings.auto_hint_message or '' }}</textarea></label>
+          <button type="submit">Save automatic hint</button>
+        </form>
+      </section>
+      <section>
+        <h2>GPIO outputs</h2>
+        {% if gpio_outputs and gpio_available %}
+          {% for output in gpio_outputs %}
+            <div class="gpio-control">
+              <span>{{ output }}</span>
+              <button data-gpio="{{ output }}" data-state="on">On</button>
+              <button data-gpio="{{ output }}" data-state="off">Off</button>
+            </div>
+          {% endfor %}
+        {% elif gpio_outputs %}
+          <p>GPIO hardware is unavailable on this host.</p>
+        {% else %}
+          <p>No outputs configured. Set <code>GPIO_OUTPUTS</code> before starting the app.</p>
+        {% endif %}
+      </section>
+    </main>
+    <dialog id="preview-dialog">
+      <div class="preview-dialog-header">
+        <h2>Live home screen preview</h2>
+        <button id="close-preview" type="button">Close</button>
+      </div>
+      <iframe src="{{ url_for('home') }}" title="Large live home screen preview"></iframe>
+    </dialog>
+    <script>window.csrfToken = {{ csrf_token|tojson }};</script>
+    <script src="{{ url_for('static', filename='admin.js', v='2') }}"></script>
+  </body>
+</html>

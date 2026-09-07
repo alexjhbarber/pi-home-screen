@@ -1,0 +1,20 @@
+[project]
+name = "pi-home-screen"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Alex Barber",email = "alex8mpn@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "flask (>=3.1.3,<4.0.0)",
+    "gpiozero (>=2.0.1.post3,<3.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "pi_home_screen", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

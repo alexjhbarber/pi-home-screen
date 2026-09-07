@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Room statistics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='2') }}">
+  </head>
+  <body class="admin-page">
+    <main class="panel">
+      <div class="panel-header">
+        <h1>Room statistics</h1>
+        <a href="{{ url_for('admin') }}">Back to controls</a>
+      </div>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form action="{{ url_for('add_statistic') }}" method="post">
+        <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+        <label>Statistic <input name="label" maxlength="80" placeholder="e.g. Players" required></label>
+        <label>Value <input name="value" maxlength="200" placeholder="e.g. 4" required></label>
+        <button type="submit">Add statistic</button>
+      </form>
+      <h2>Recorded statistics</h2>
+      <ol class="hint-history">
+        {% for statistic in statistics %}
+          <li>
+            <span class="hint-count">{{ statistic.label }}</span>
+            <span>{{ statistic.value }}</span>
+            <time datetime="{{ statistic.recorded_at }}">{{ statistic.recorded_at }} UTC</time>
+            <form action="{{ url_for('delete_statistic', statistic_id=statistic.id) }}" method="post">
+              <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+              <button type="submit">Delete</button>
+            </form>
+          </li>
+        {% else %}
+          <li>No statistics recorded yet.</li>
+        {% endfor %}
+      </ol>
+    </main>
+  </body>
+</html>

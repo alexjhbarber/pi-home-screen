@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.pytest_cache/
+.coverage
+coverage.xml
+.cache
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Poetry
+poetry.lock
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# SQLite and instance data
+instance/*.db
+instance/home_screen.db
+instance/uploads/
+
+# Static uploaded files (if stored elsewhere)
+uploads/
+
+# Node modules (if any front-end tooling used)
+node_modules/
+
+# Test outputs
+htmlcov/
+
+# mypy
+.mypy_cache/
+
+# other
+*.swp
+*~
