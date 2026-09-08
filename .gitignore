@@ -38,9 +38,7 @@ pip-delete-this-directory.txt
 *.log
 
 # SQLite and instance data
-instance/*.db
-instance/home_screen.db
-instance/uploads/
+src/instance/
 
 # Static uploaded files (if stored elsewhere)
 uploads/
