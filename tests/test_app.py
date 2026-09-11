@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 from pi_home_screen import create_app
 
@@ -148,6 +149,48 @@ class HomeScreenTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertTrue(self.client.get("/api/gpio/activity").get_json()["paused"])
+
+    def test_configured_gpio_input_records_activity_when_pressed(self) -> None:
+        class FakeGpioController:
+            instance: "FakeGpioController"
+
+            def __init__(self, **_kwargs: object) -> None:
+                self.available = True
+                self.inputs: list[tuple[str, int]] = []
+                self.callback = None
+                FakeGpioController.instance = self
+
+            def configure_inputs(self, inputs, callback) -> None:
+                self.inputs = list(inputs)
+                self.callback = callback
+
+            def output_names(self) -> list[str]:
+                return []
+
+            def close(self) -> None:
+                pass
+
+        with patch("pi_home_screen.app.GpioController", FakeGpioController):
+            app = create_app(
+                {
+                    "TESTING": True,
+                    "SECRET_KEY": "test-secret",
+                    "ADMIN_PASSWORD": "test-password",
+                    "DATABASE": str(Path(self.temporary_directory.name) / "configured-input.db"),
+                    "GPIO_OUTPUTS": {},
+                    "GPIO_INPUTS": {"complete-room": 17},
+                }
+            )
+
+        app.extensions["display_store"].start_timer()
+        self.assertEqual(FakeGpioController.instance.inputs, [("complete-room", 17)])
+        FakeGpioController.instance.callback(17, "complete-room")
+
+        activity = app.test_client().get("/api/gpio/activity").get_json()["activity"]
+        self.assertEqual(activity[0]["pin"], 17)
+        self.assertEqual(activity[0]["event"], "complete-room")
+        self.assertTrue(activity[0]["accepted"])
+        app.extensions["gpio"].close()
 
     def test_automatic_hint_can_be_configured(self) -> None:
         csrf_token = self.login()

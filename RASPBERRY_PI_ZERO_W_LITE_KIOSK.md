@@ -131,6 +131,9 @@ ADMIN_PASSWORD=replace-this-with-a-long-unique-password
 
 # Optional output pins, using BCM numbering:
 # GPIO_OUTPUTS={"door-light":17,"buzzer":27}
+
+# Optional room-complete input, using BCM numbering:
+# GPIO_INPUTS={"complete-room":17}
 EOF
 
 sudo chown kiosk:kiosk /etc/pi-home-screen/environment
@@ -197,6 +200,9 @@ sudo tee /home/kiosk/.xinitrc >/dev/null <<'EOF'
 xset -dpms
 xset s off
 xset s noblank
+
+# Select the connected monitor's preferred resolution after X11 is available.
+xrandr --output HDMI-1 --auto
 
 unclutter --timeout 0.5 --start-hidden &
 
@@ -336,6 +342,55 @@ sudo sed -i \
   's/startx -- :0 vt7 -nolisten tcp/startx -- :0 -keeptty -nolisten tcp/' \
   /home/kiosk/.bash_profile
 
+sudo reboot
+```
+
+### Chromium fills only part of the display
+
+Chromium's `--kiosk` flag fills the X11 display. If it appears in only half
+of the monitor, X11 started at the wrong HDMI resolution rather than the web
+application being constrained. At the Pi's local console or over SSH, inspect
+the active X11 output and modes:
+
+```bash
+sudo -u kiosk DISPLAY=:0 XAUTHORITY=/home/kiosk/.Xauthority xrandr --query
+```
+
+Find the line ending in `connected` (normally `HDMI-1`) and a mode marked
+with `+`, which is the monitor's preferred resolution. Set that mode now,
+substituting the output and resolution shown by the preceding command:
+
+```bash
+sudo -u kiosk DISPLAY=:0 XAUTHORITY=/home/kiosk/.Xauthority \
+  xrandr --output HDMI-1 --mode 1920x1080
+```
+
+The `xrandr --output HDMI-1 --auto` line in step 8 makes the selected
+monitor mode persistent each time the kiosk starts. If the connected output
+has a different name, replace `HDMI-1` in `/home/kiosk/.xinitrc` with the
+name reported by `xrandr`, then reboot:
+
+```bash
+sudo nano /home/kiosk/.xinitrc
+sudo reboot
+```
+
+If `xrandr` offers no correct mode, configure the HDMI mode before X11
+starts. Raspberry Pi OS Bookworm stores this file at
+`/boot/firmware/config.txt`; older Raspberry Pi OS releases use
+`/boot/config.txt`. Edit the file that exists and add these lines for a
+1080p monitor:
+
+```text
+hdmi_group=2
+hdmi_mode=82
+disable_overscan=1
+```
+
+`hdmi_mode=82` is 1920x1080 at 60 Hz. Use a mode supported by the monitor;
+for a 720p monitor use `hdmi_mode=85` instead. Reboot after saving:
+
+```bash
 sudo reboot
 ```
 

@@ -1,0 +1,11 @@
+video, image, sound hints
+
+record leader board scored
+
+leave automatic hints for now
+
+make sure pause event for gpio works
+
+make sound when hint sent
+
+add and take away time 

@@ -32,6 +32,18 @@ pin number. Each output gains On and Off controls in `/admin`:
 export GPIO_OUTPUTS='{"door-light": 17, "buzzer": 27}'
 ```
 
+To configure a room-complete input before opening the admin page, set
+`GPIO_INPUTS` with the event name and BCM pin:
+
+```bash
+export GPIO_INPUTS='{"complete-room": 17}'
+```
+
+Mappings saved under **Admin > GPIO** take precedence over `GPIO_INPUTS`.
+Use an unused GPIO such as BCM 17 (physical pin 11). Do not use BCM 2 or 3:
+they are I2C pins with board pull-ups and may be claimed by the operating
+system, preventing the application from receiving a button press.
+
 GPIO Zero controls the pins on Raspberry Pi OS. On a development computer,
 the app logs that physical GPIO is unavailable and continues without touching
 hardware. GPIO uses 3.3V logic only: do not connect relays, motors, or other

@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from collections.abc import Iterable
 
 from gpiozero import Button, OutputDevice
 from gpiozero.exc import BadPinFactory
@@ -14,7 +15,7 @@ class GpioController:
     def __init__(
         self,
         output_pins: dict[str, int] | None = None,
-        input_pins: dict[str, int] | None = None,
+        input_pins: Iterable[tuple[str, int]] | dict[str, int] | None = None,
     ) -> None:
         self._outputs: dict[str, OutputDevice] = {}
         self._buttons: dict[int, Button] = {}
@@ -35,13 +36,16 @@ class GpioController:
         return []
 
     def configure_inputs(
-        self, input_pins: dict[str, int], callback: Callable[[int, str], None]
+        self,
+        input_pins: Iterable[tuple[str, int]] | dict[str, int],
+        callback: Callable[[int, str], None],
     ) -> None:
         for button in self._buttons.values():
             button.close()
         self._buttons.clear()
         try:
-            for name, pin in input_pins.items():
+            pins = input_pins.items() if isinstance(input_pins, dict) else input_pins
+            for name, pin in pins:
                 button = Button(pin)
                 button.when_pressed = lambda pin=pin, name=name: callback(pin, name)
                 self._buttons[pin] = button

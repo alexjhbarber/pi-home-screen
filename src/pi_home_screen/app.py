@@ -42,6 +42,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     store = DisplaySettingsStore(database_path)
     broker = DisplayUpdateBroker()
+    configured_gpio_inputs = _parse_gpio_input_mapping(app.config["GPIO_INPUTS"])
     gpio = GpioController(
         output_pins=_parse_pin_mapping(app.config["GPIO_OUTPUTS"], "GPIO_OUTPUTS"),
         input_pins={},
@@ -52,8 +53,13 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     auto_hint_timer: Timer | None = None
 
     def configure_gpio_inputs() -> None:
+        saved_mappings = store.get_gpio_mappings()
         gpio.configure_inputs(
-            {mapping.event: mapping.pin for mapping in store.get_gpio_mappings()},
+            (
+                [(event, pin) for event, pin in configured_gpio_inputs.items()]
+                if not saved_mappings
+                else [(mapping.event, mapping.pin) for mapping in saved_mappings]
+            ),
             handle_gpio_event,
         )
 
@@ -418,4 +424,11 @@ def _parse_pin_mapping(value: str | dict[str, int], setting_name: str) -> dict[s
         for name, pin in mapping.items()
     ):
         raise RuntimeError(f"{setting_name} must map names to BCM pin numbers from 0 to 27.")
+    return mapping
+
+
+def _parse_gpio_input_mapping(value: str | dict[str, int]) -> dict[str, int]:
+    mapping = _parse_pin_mapping(value, "GPIO_INPUTS")
+    if set(mapping) - {"complete-room"}:
+        raise RuntimeError("GPIO_INPUTS supports only the 'complete-room' event.")
     return mapping
