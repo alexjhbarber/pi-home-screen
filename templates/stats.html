@@ -13,28 +13,36 @@
         <a href="{{ url_for('admin') }}">Back to controls</a>
       </div>
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
-      <form action="{{ url_for('add_statistic') }}" method="post">
-        <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-        <label>Statistic <input name="label" maxlength="80" placeholder="e.g. Players" required></label>
-        <label>Value <input name="value" maxlength="200" placeholder="e.g. 4" required></label>
-        <button type="submit">Add statistic</button>
-      </form>
-      <h2>Recorded statistics</h2>
-      <ol class="hint-history">
-        {% for statistic in statistics %}
-          <li>
-            <span class="hint-count">{{ statistic.label }}</span>
-            <span>{{ statistic.value }}</span>
-            <time datetime="{{ statistic.recorded_at }}">{{ statistic.recorded_at }} UTC</time>
-            <form action="{{ url_for('delete_statistic', statistic_id=statistic.id) }}" method="post">
-              <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-              <button type="submit">Delete</button>
-            </form>
-          </li>
-        {% else %}
-          <li>No statistics recorded yet.</li>
-        {% endfor %}
-      </ol>
+      <h2>Leaderboard</h2>
+      <p>Ranked by time remaining (higher is better), then penalties, then hints.</p>
+      <table class="leaderboard" role="table">
+        <thead>
+          <tr><th>#</th><th>Team</th><th>Players</th><th>Time</th><th>Remaining</th><th>Hints</th><th>Penalties</th><th>Finished</th></tr>
+        </thead>
+        <tbody>
+          {% for entry in leaderboard %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ entry.group_name }}</td>
+              <td>{{ entry.group_size }}</td>
+              <td>{{ entry.time_taken_seconds }}s</td>
+              <td>
+                {% if entry.time_remaining_seconds >= 0 %}
+                  {{ entry.time_remaining_seconds }}s
+                {% else %}
+                  -{{ (-entry.time_remaining_seconds) }}s (overtime)
+                {% endif %}
+              </td>
+              <td>{{ entry.hints_used }}</td>
+              <td>{{ entry.penalties }}</td>
+              <td><time datetime="{{ entry.completed_at }}">{{ entry.completed_at }} UTC</time></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8">No completed teams yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
     </main>
   </body>
 </html>

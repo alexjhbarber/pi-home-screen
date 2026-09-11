@@ -96,19 +96,87 @@ body {
 .admin-page {
   background: #102a43;
   min-height: 100vh;
-  padding: 2rem;
+  padding: 0;
 }
 
 .panel {
   background: #fff;
   color: #102a43;
-  margin: 0 auto;
-  max-width: 44rem;
+  margin: 2rem auto;
+  max-width: 90rem;
+  width: calc(100% - 4rem);
+  min-height: calc(100vh - 4rem);
   padding: 2rem;
+  box-shadow: 0 2px 12px rgba(16, 42, 67, 0.12);
+  border-radius: 6px;
+}
+
+.admin-panel {
+  max-width: none;
 }
 
 .login-panel {
   max-width: 26rem;
+}
+
+.control-grid {
+  align-items: stretch;
+  display: grid;
+  gap: 1.25rem;
+  grid-auto-flow: row dense;
+  grid-auto-rows: minmax(10rem, auto);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+.control-card {
+  border: 1px solid #ccd6df;
+  min-width: 0;
+  position: relative;
+  padding: 1.25rem;
+}
+
+.control-card h2 {
+  margin-top: 0;
+}
+
+.control-card.width-2 {
+  grid-column: span 2;
+}
+
+.control-card.height-2 {
+  grid-row: span 2;
+}
+
+.control-card-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: 1rem;
+}
+
+.control-card-editor[hidden] {
+  display: none;
+}
+
+.control-card-editor button {
+  background: #dbeafe;
+  font-size: .85rem;
+  padding: .4rem .6rem;
+}
+
+.control-card-editor button[aria-pressed="true"] {
+  background: #005f73;
+  color: #fff;
+}
+
+.control-grid.is-editing .control-card {
+  cursor: grab;
+  outline: 2px dashed #005f73;
+  outline-offset: 3px;
+}
+
+.control-grid.is-editing .control-card.dragging {
+  opacity: .45;
 }
 
 .panel-header {
@@ -251,14 +319,14 @@ button {
   font-weight: 700;
 }
 
-#preview-dialog {
+#preview-dialog, #completion-dialog {
   border: 0;
   max-width: min(90vw, 70rem);
   padding: 1rem;
   width: 90vw;
 }
 
-#preview-dialog::backdrop {
+#preview-dialog::backdrop, #completion-dialog::backdrop {
   background: rgba(0, 0, 0, .7);
 }
 
@@ -282,6 +350,16 @@ button {
 }
 
 @media (max-width: 44rem) {
+  .control-grid {
+    grid-auto-rows: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .control-card.width-2, .control-card.height-2 {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
   .panel-header {
     align-items: flex-start;
     flex-direction: column;

@@ -2,9 +2,9 @@ video, image, sound hints
 
 record leader board scored
 
-leave automatic hints for now
+DONE leave automatic hints for now
 
-make sure pause event for gpio works
+DONE make sure pause event for gpio works
 
 make sound when hint sent
 

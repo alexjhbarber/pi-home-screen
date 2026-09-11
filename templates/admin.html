@@ -7,11 +7,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='screen.css') }}">
   </head>
   <body class="admin-page">
-    <main class="panel">
+    <main class="panel admin-panel">
       <div class="panel-header">
         <h1>Home screen admin</h1>
         <div class="header-actions">
           <button id="open-preview" type="button">Open live preview</button>
+          <button id="edit-controls" type="button" aria-pressed="false">Edit controls</button>
+          <button id="add-control" type="button">Add control</button>
           <form action="{{ url_for('admin_logout') }}" method="post">
             <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
             <button type="submit">Sign out</button>
@@ -25,7 +27,9 @@
       </nav>
       <p><a href="{{ url_for('settings') }}">Change display text, colours, and background image.</a></p>
       <p id="status" role="status"></p>
-      <section>
+      <p id="edit-controls-help" hidden>Drag a control card to rearrange it, then select Done editing.</p>
+      <div id="control-grid" class="control-grid">
+      <section class="control-card" data-control-id="timer">
         <h2>60-minute timer</h2>
         <form action="{{ url_for('update_timer', action='start') }}" method="post" class="inline-form">
           <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
@@ -36,14 +40,14 @@
           <button data-timer-action="reset" type="submit">Reset timer</button>
         </form>
       </section>
-      <section>
+      <section class="control-card" data-control-id="completion">
         <h2>Room completion</h2>
         <form action="{{ url_for('complete_room') }}" method="post" class="inline-form">
           <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
           <button id="complete-room" type="submit">Complete room</button>
         </form>
       </section>
-      <section>
+      <section class="control-card height-2" data-control-id="announcement">
         <h2>Two-minute announcement</h2>
         <form id="announcement-form" action="{{ url_for('send_announcement') }}" method="post">
           <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
@@ -64,19 +68,13 @@
           {% endfor %}
         </ol>
       </section>
-      <section>
-        <h2>Automatic hint</h2>
-        <p>Send one hint if the room is still incomplete when the timer reaches the selected time.</p>
-        <form action="{{ url_for('set_automatic_hint') }}" method="post">
-          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-          <label>Send when minutes remain <input name="remaining_minutes" min="0" max="59" type="number" value="{{ settings.auto_hint_remaining_minutes if settings.auto_hint_remaining_minutes is not none else '' }}" required></label>
-          <label>Hint <textarea name="message" maxlength="500" required>{{ settings.auto_hint_message or '' }}</textarea></label>
-          <button type="submit">Save automatic hint</button>
-        </form>
-      </section>
-      <section>
-        <h2>GPIO outputs</h2>
+      <section class="control-card height-2" data-control-id="gpio" data-outputs='{{ gpio_outputs|tojson }}'>
+        <h2>GPIO controls</h2>
+        <button id="toggle-gpio-pause" type="button" data-paused="{{ gpio_paused|tojson }}">
+          {% if gpio_paused %}Resume GPIO events{% else %}Pause GPIO events{% endif %}
+        </button>
         {% if gpio_outputs and gpio_available %}
+        <div class="gpio-outputs-list">
           {% for output in gpio_outputs %}
             <div class="gpio-control">
               <span>{{ output }}</span>
@@ -84,12 +82,14 @@
               <button data-gpio="{{ output }}" data-state="off">Off</button>
             </div>
           {% endfor %}
+        </div>
         {% elif gpio_outputs %}
           <p>GPIO hardware is unavailable on this host.</p>
         {% else %}
           <p>No outputs configured. Set <code>GPIO_OUTPUTS</code> before starting the app.</p>
         {% endif %}
       </section>
+      </div>
     </main>
     <dialog id="preview-dialog">
       <div class="preview-dialog-header">
@@ -98,7 +98,22 @@
       </div>
       <iframe src="{{ url_for('home') }}" title="Large live home screen preview"></iframe>
     </dialog>
+    <dialog id="completion-dialog" aria-labelledby="completion-title">
+      <div class="preview-dialog-header">
+        <h2 id="completion-title">Room result</h2>
+        <button id="close-completion" type="button">Close</button>
+      </div>
+      <p id="completion-time" role="status"></p>
+      <form id="completion-form" action="{{ url_for('save_completion_result') }}" method="post">
+        <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+        <label>Group name <input name="group_name" maxlength="80" required></label>
+        <label>Group size <input name="group_size" inputmode="numeric" min="0" max="999" type="number" required></label>
+        <label>Hints used <input name="hints_used" inputmode="numeric" min="0" max="999" type="number" value="0" required></label>
+        <label>Penalties <input name="penalties" inputmode="numeric" min="0" max="999" type="number" value="0" required></label>
+        <button type="submit">Save room result</button>
+      </form>
+    </dialog>
     <script>window.csrfToken = {{ csrf_token|tojson }};</script>
-    <script src="{{ url_for('static', filename='admin.js', v='2') }}"></script>
+    <script src="{{ url_for('static', filename='admin.js', v='6') }}"></script>
   </body>
 </html>

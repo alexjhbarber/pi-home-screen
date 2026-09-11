@@ -53,6 +53,19 @@ class RoomStatistic:
 
 
 @dataclass(frozen=True)
+class CompletionResult:
+    group_name: str
+    group_size: int
+    hints_used: int
+    penalties: int
+    time_taken_seconds: int
+    time_remaining_seconds: int
+
+    def to_dict(self) -> dict[str, int | str]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class GpioMapping:
     pin: int
     event: str
@@ -207,6 +220,99 @@ class DisplaySettingsStore:
             )
             return [RoomStatistic(**dict(row)) for row in rows]
 
+    @dataclass(frozen=True)
+    class LeaderboardEntry:
+        group_name: str
+        group_size: int
+        hints_used: int
+        penalties: int
+        time_taken_seconds: int
+        time_remaining_seconds: int
+        completed_at: str
+
+        def to_dict(self) -> dict[str, int | str]:
+            return asdict(self)
+
+    def get_leaderboard(self) -> list[LeaderboardEntry]:
+        """Return leaderboard entries ordered by best performance.
+
+        Ordering: time_remaining_seconds DESC (more time left is better),
+        then penalties ASC, then hints_used ASC, then completed_at ASC.
+        """
+        with closing(connect(self.database_path)) as connection:
+            rows = connection.execute(
+                """
+                SELECT group_name, group_size, hints_used, penalties,
+                       time_taken_seconds, time_remaining_seconds, completed_at
+                FROM room_results
+                ORDER BY time_remaining_seconds DESC, penalties ASC, hints_used ASC, completed_at ASC
+                """
+            ).fetchall()
+            return [
+                DisplaySettingsStore.LeaderboardEntry(**dict(row))
+                for row in rows
+            ]
+
+    def get_latest_result(self) -> CompletionResult | None:
+        with closing(connect(self.database_path)) as connection:
+            row = connection.execute(
+                "SELECT group_name, group_size, hints_used, penalties, time_taken_seconds, time_remaining_seconds FROM room_results ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            return CompletionResult(**dict(row))
+
+    def save_completion_result(
+        self,
+        group_name: object,
+        group_size: object,
+        hints_used: object,
+        penalties: object,
+    ) -> CompletionResult:
+        name = self._validate_result_name(group_name)
+        size = self._validate_result_count(group_size, "Group size")
+        hints = self._validate_result_count(hints_used, "Hints used")
+        penalty_count = self._validate_result_count(penalties, "Penalties")
+        settings = self.get()
+        if settings.timer_started_at is None or settings.room_completed_at is None:
+            raise ValueError("Complete the room before recording its result.")
+
+        started_at = datetime.fromisoformat(settings.timer_started_at)
+        completed_at = datetime.fromisoformat(settings.room_completed_at)
+        time_taken_seconds = max(0, int((completed_at - started_at).total_seconds()))
+        time_remaining_seconds = TIMER_DURATION_SECONDS - time_taken_seconds
+        with closing(connect(self.database_path)) as connection:
+            connection.execute(
+                """
+                INSERT INTO room_results (
+                    timer_started_at, completed_at, group_name, group_size, hints_used,
+                    penalties, time_taken_seconds, time_remaining_seconds
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(timer_started_at) DO UPDATE SET
+                    completed_at = excluded.completed_at,
+                    group_name = excluded.group_name,
+                    group_size = excluded.group_size,
+                    hints_used = excluded.hints_used,
+                    penalties = excluded.penalties,
+                    time_taken_seconds = excluded.time_taken_seconds,
+                    time_remaining_seconds = excluded.time_remaining_seconds
+                """,
+                (
+                    settings.timer_started_at, settings.room_completed_at, name, size, hints,
+                    penalty_count, time_taken_seconds, time_remaining_seconds,
+                ),
+            )
+            connection.commit()
+        return CompletionResult(
+            group_name=name,
+            group_size=size,
+            hints_used=hints,
+            penalties=penalty_count,
+            time_taken_seconds=time_taken_seconds,
+            time_remaining_seconds=time_remaining_seconds,
+        )
+
     def add_statistic(self, label: object, value: object) -> None:
         if not isinstance(label, str) or not label.strip():
             raise ValueError("Statistic name is required.")
@@ -317,6 +423,21 @@ class DisplaySettingsStore:
             connection.execute("DELETE FROM hints")
             connection.commit()
         return self.get()
+
+    @staticmethod
+    def _validate_result_name(value: object) -> str:
+        if not isinstance(value, str) or not value.strip() or len(value) > 80:
+            raise ValueError("Group name must contain 1 to 80 characters.")
+        return value.strip()
+
+    @staticmethod
+    def _validate_result_count(value: object, label: str) -> int:
+        if not isinstance(value, str) or not value.isdecimal():
+            raise ValueError(f"{label} must be a whole number.")
+        count = int(value)
+        if count > 999:
+            raise ValueError(f"{label} must be 999 or less.")
+        return count
 
     @staticmethod
     def _validate(values: dict[str, object]) -> DisplaySettings:

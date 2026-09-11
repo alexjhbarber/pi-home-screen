@@ -42,6 +42,18 @@ def initialize(database_path: Path) -> None:
                 recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS room_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timer_started_at TEXT NOT NULL UNIQUE,
+                completed_at TEXT NOT NULL,
+                group_name TEXT NOT NULL,
+                group_size INTEGER NOT NULL,
+                hints_used INTEGER NOT NULL,
+                penalties INTEGER NOT NULL,
+                time_taken_seconds INTEGER NOT NULL,
+                time_remaining_seconds INTEGER NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS gpio_mappings (
                 pin INTEGER PRIMARY KEY,
                 event TEXT NOT NULL

@@ -103,7 +103,11 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
 
     @app.get("/api/display")
     def get_display() -> Response:
-        return jsonify(store.get().to_dict())
+        settings = store.get().to_dict()
+        latest = store.get_latest_result()
+        if latest is not None:
+            settings["latest_result"] = latest.to_dict()
+        return jsonify(settings)
 
     @app.get("/api/gpio/activity")
     def get_gpio_activity() -> Response:
@@ -155,12 +159,13 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     def admin() -> str | Response:
         if not session.get("admin"):
             return redirect(url_for("admin_login"))
+        gpio_paused, _activity = store.get_gpio_activity()
         return render_template(
             "admin.html",
-            settings=store.get(),
             hints=store.get_hints(),
             gpio_outputs=gpio.output_names(),
             gpio_available=gpio.available,
+            gpio_paused=gpio_paused,
             csrf_token=session["csrf_token"],
         )
 
@@ -203,9 +208,11 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     @app.get("/admin/stats")
     def statistics() -> str:
         _require_admin()
+        leaderboard = store.get_leaderboard()
         return render_template(
             "stats.html",
             statistics=store.get_statistics(),
+            leaderboard=leaderboard,
             csrf_token=session["csrf_token"],
         )
 
@@ -247,7 +254,15 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     def set_gpio_paused() -> Response:
         _require_admin()
         _require_csrf()
-        store.set_gpio_paused(request.form.get("paused") == "on")
+        values = request.get_json(silent=True) or request.form.to_dict()
+        if not isinstance(values, dict):
+            return jsonify(error="A GPIO pause setting is required."), 400
+        paused = values.get("paused")
+        if not isinstance(paused, bool) and paused not in ("on", "off"):
+            return jsonify(error="GPIO pause setting must be true or false."), 400
+        store.set_gpio_paused(paused is True or paused == "on")
+        if request.is_json:
+            return jsonify(paused=paused is True or paused == "on")
         return redirect(url_for("gpio_settings"))
 
     @app.post("/admin/stats")
@@ -320,6 +335,26 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         if request.form:
             return redirect(url_for("admin"))
         return jsonify(settings.to_dict())
+
+    @app.post("/admin/results")
+    def save_completion_result() -> Response:
+        _require_admin()
+        _require_csrf()
+        values = request.get_json(silent=True) or request.form.to_dict()
+        if not isinstance(values, dict):
+            return jsonify(error="A room result object is required."), 400
+        try:
+            result = store.save_completion_result(
+                values.get("group_name"),
+                values.get("group_size"),
+                values.get("hints_used"),
+                values.get("penalties"),
+            )
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        if request.form:
+            return redirect(url_for("admin"))
+        return jsonify(result.to_dict())
 
     @app.post("/admin/announcement")
     def send_announcement() -> Response:
@@ -423,7 +458,7 @@ def _parse_pin_mapping(value: str | dict[str, int], setting_name: str) -> dict[s
         isinstance(name, str) and isinstance(pin, int) and 0 <= pin <= 27
         for name, pin in mapping.items()
     ):
-        raise RuntimeError(f"{setting_name} must map names to BCM pin numbers from 0 to 27.")
+        raise RuntimeError(f"{setting_name} must map names to GPIO pin numbers from 0 to 27.")
     return mapping
 
 

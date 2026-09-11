@@ -49,6 +49,12 @@ class HomeScreenTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'id="preview-dialog"', response.data)
         self.assertIn(b"Open live preview", response.data)
+        self.assertNotIn(b"Automatic hint", response.data)
+        self.assertIn(b'id="completion-dialog"', response.data)
+        self.assertIn(b"Group name", response.data)
+        self.assertIn(b'id="control-grid"', response.data)
+        self.assertIn(b"Edit controls", response.data)
+        self.assertIn(b"Pause GPIO events", response.data)
 
     def test_settings_page_saves_display_content(self) -> None:
         csrf_token = self.login()
@@ -119,10 +125,12 @@ class HomeScreenTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        stats_page = self.client.get("/admin/stats")
-        self.assertIn(b"Players", stats_page.data)
-        self.assertIn(b">4<", stats_page.data)
-        statistic = self.app.extensions["display_store"].get_statistics()[0]
+        # UI removed; verify via the store directly
+        stats = self.app.extensions["display_store"].get_statistics()
+        self.assertEqual(len(stats), 1)
+        self.assertEqual(stats[0].label, "Players")
+        self.assertEqual(stats[0].value, "4")
+        statistic = stats[0]
 
         deleted = self.client.post(
             f"/admin/stats/{statistic.id}/delete",
@@ -149,6 +157,17 @@ class HomeScreenTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertTrue(self.client.get("/api/gpio/activity").get_json()["paused"])
+
+    def test_admin_can_toggle_gpio_events(self) -> None:
+        csrf_token = self.login()
+        response = self.client.post(
+            "/admin/gpio/pause",
+            json={"paused": True},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["paused"])
 
     def test_configured_gpio_input_records_activity_when_pressed(self) -> None:
         class FakeGpioController:
@@ -281,6 +300,55 @@ class HomeScreenTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.get_json()["room_completed_at"])
 
+    def test_completed_room_result_records_group_and_time(self) -> None:
+        csrf_token = self.login()
+        self.client.post(
+            "/admin/timer/start",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.client.post(
+            "/admin/complete",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        response = self.client.post(
+            "/admin/results",
+            json={
+                "group_name": "The Locksmiths",
+                "group_size": "4",
+                "hints_used": "2",
+                "penalties": "1",
+            },
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["group_name"], "The Locksmiths")
+        self.assertEqual(response.get_json()["group_size"], 4)
+        self.assertEqual(response.get_json()["hints_used"], 2)
+        self.assertEqual(response.get_json()["penalties"], 1)
+        self.assertGreaterEqual(response.get_json()["time_taken_seconds"], 0)
+        self.assertLessEqual(response.get_json()["time_remaining_seconds"], 3600)
+
+    def test_cannot_record_result_before_room_is_completed(self) -> None:
+        csrf_token = self.login()
+        response = self.client.post(
+            "/admin/results",
+            json={
+                "group_name": "The Locksmiths",
+                "group_size": "4",
+                "hints_used": "0",
+                "penalties": "0",
+            },
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.get_json()["error"],
+            "Complete the room before recording its result.",
+        )
+
     def test_cannot_complete_room_before_timer_starts(self) -> None:
         csrf_token = self.login()
         response = self.client.post(
@@ -353,6 +421,7 @@ class HomeScreenTests(unittest.TestCase):
     def test_timer_and_announcement_actions_require_admin_session(self) -> None:
         self.assertEqual(self.client.post("/admin/timer/start").status_code, 401)
         self.assertEqual(self.client.post("/admin/announcement").status_code, 401)
+        self.assertEqual(self.client.post("/admin/gpio/pause").status_code, 401)
 
     def test_settings_require_admin_session_and_csrf_token(self) -> None:
         response = self.client.post("/api/admin/settings", json={})

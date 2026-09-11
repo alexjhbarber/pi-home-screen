@@ -23,6 +23,21 @@ function updateDisplay(settings) {
   roomCompletedAt = settings.room_completed_at;
   announcementExpiresAt = settings.announcement_expires_at;
   announcementMessage.textContent = settings.announcement || "";
+
+  // Team info (latest result) — revealed when present
+  const teamInfo = document.querySelector('#team-info');
+  const teamName = document.querySelector('#team-name');
+  const teamDetails = document.querySelector('#team-details');
+  if (settings.latest_result) {
+    if (teamInfo && teamName && teamDetails) {
+      teamName.textContent = settings.latest_result.group_name;
+      teamDetails.textContent = `Players: ${settings.latest_result.group_size} • Hints: ${settings.latest_result.hints_used} • Penalties: ${settings.latest_result.penalties} • Time: ${formatDuration(settings.latest_result.time_taken_seconds)} (${settings.latest_result.time_remaining_seconds >= 0 ? formatDuration(settings.latest_result.time_remaining_seconds) + ' left' : formatDuration(-settings.latest_result.time_remaining_seconds) + ' overtime'})`;
+      teamInfo.hidden = false;
+    }
+  } else if (teamInfo) {
+    teamInfo.hidden = true;
+  }
+
   updateTimer();
   updateRoomCompletion();
   updateAnnouncement();
@@ -80,16 +95,16 @@ setInterval(() => {
 const events = new EventSource("/events");
 events.addEventListener("display", (event) => updateDisplay(JSON.parse(event.data)));
 
-async function updateGpioActivity() {
-  const response = await fetch("/api/gpio/activity");
-  if (!response.ok) return;
-  const { paused, activity } = await response.json();
-  const status = paused ? "GPIO paused" : "GPIO active";
-  const events = activity.map((entry) => (
-    `BCM ${entry.pin}: ${entry.event} (${entry.accepted ? "triggered" : "ignored"})`
-  ));
-  gpioActivity.textContent = [status, ...events].join(" | ");
-}
+//async function updateGpioActivity() {
+//  const response = await fetch("/api/gpio/activity");
+//  if (!response.ok) return;
+//  const { paused, activity } = await response.json();
+//  const status = paused ? "GPIO paused" : "GPIO active";/
+//  const events = activity.map((entry) => (
+//  `BCM ${entry.pin}: ${entry.event} (${entry.accepted ? "triggered" : "ignored"})`
+//  ));
+//  gpioActivity.textContent = [status, ...events].join(" | ");
+//}
 
-updateGpioActivity();
-setInterval(updateGpioActivity, 1000);
+//updateGpioActivity();
+//setInterval(updateGpioActivity, 1000);
