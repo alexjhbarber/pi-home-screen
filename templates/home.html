@@ -22,6 +22,8 @@
     </main>
     <aside id="announcement" class="announcement" hidden aria-live="assertive">
       <p id="announcement-message"></p>
+      <img id="announcement-image" hidden alt="Announcement image">
+      <video id="announcement-video" playsinline hidden controls autoplay muted></video>
     </aside>
     <aside id="gpio-activity" class="gpio-activity" aria-live="polite"></aside>
     <script src="{{ url_for('static', filename='home.js') }}"></script>

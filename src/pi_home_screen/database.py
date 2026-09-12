@@ -56,7 +56,8 @@ def initialize(database_path: Path) -> None:
 
             CREATE TABLE IF NOT EXISTS gpio_mappings (
                 pin INTEGER PRIMARY KEY,
-                event TEXT NOT NULL
+                event TEXT NOT NULL,
+                preset_id INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS gpio_events (
@@ -74,12 +75,36 @@ def initialize(database_path: Path) -> None:
 
             INSERT INTO gpio_settings (id, paused) VALUES (1, 0)
             ON CONFLICT(id) DO NOTHING;
+
+            CREATE TABLE IF NOT EXISTS action_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timer_started_at TEXT,
+                action_type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS hint_presets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL CHECK (kind IN ('text', 'image', 'video')),
+                title TEXT NOT NULL,
+                message TEXT,
+                media_filename TEXT,
+                full_screen INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         existing_columns = {
             row["name"]
             for row in connection.execute("PRAGMA table_info(display_settings)")
         }
+        gpio_mapping_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(gpio_mappings)")
+        }
+        if "preset_id" not in gpio_mapping_columns:
+            connection.execute("ALTER TABLE gpio_mappings ADD COLUMN preset_id INTEGER")
         for column in (
             "timer_started_at TEXT",
             "room_completed_at TEXT",
@@ -89,6 +114,11 @@ def initialize(database_path: Path) -> None:
             "timer_remaining_seconds INTEGER",
             "auto_hint_remaining_minutes INTEGER",
             "auto_hint_message TEXT",
+            "extra_time_seconds INTEGER NOT NULL DEFAULT 0",
+            "penalty_time_seconds INTEGER NOT NULL DEFAULT 0",
+            "announcement_media_type TEXT",
+            "announcement_media_filename TEXT",
+            "announcement_media_full_screen INTEGER NOT NULL DEFAULT 0",
         ):
             name = column.split()[0]
             if name not in existing_columns:
@@ -100,5 +130,17 @@ def initialize(database_path: Path) -> None:
         if "timer_remaining_seconds" not in hint_columns:
             connection.execute(
                 "ALTER TABLE hints ADD COLUMN timer_remaining_seconds INTEGER NOT NULL DEFAULT 3600"
+            )
+        for column in ("media_type TEXT", "media_filename TEXT"):
+            name = column.split()[0]
+            if name not in hint_columns:
+                connection.execute(f"ALTER TABLE hints ADD COLUMN {column}")
+        preset_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(hint_presets)")
+        }
+        if "full_screen" not in preset_columns:
+            connection.execute(
+                "ALTER TABLE hint_presets ADD COLUMN full_screen INTEGER NOT NULL DEFAULT 0"
             )
         connection.commit()

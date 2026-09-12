@@ -11,6 +11,12 @@
       <div class="panel-header">
         <h1>Home screen admin</h1>
         <div class="header-actions">
+          <nav class="topnav-inline" aria-label="Main admin">
+            <a href="{{ url_for('statistics') }}">Leaderboard</a>
+            <a href="{{ url_for('settings') }}">Customisation</a>
+            <a href="{{ url_for('gpio_settings') }}">GPIO</a>
+            <a href="{{ url_for('hint_library') }}">Hint library</a>
+          </nav>
           <button id="open-preview" type="button">Open live preview</button>
           <button id="edit-controls" type="button" aria-pressed="false">Edit controls</button>
           <button id="add-control" type="button">Add control</button>
@@ -20,75 +26,117 @@
           </form>
         </div>
       </div>
-      <nav class="admin-nav" aria-label="Admin sections">
-        <a href="{{ url_for('settings') }}">Settings</a>
-        <a href="{{ url_for('statistics') }}">Stats</a>
-        <a href="{{ url_for('gpio_settings') }}">GPIO</a>
-      </nav>
+      <section class="time-stats" aria-live="polite" aria-label="Active timer">
+        <h2>Active timer</h2>
+        <p>
+          <span id="active-timer-state">Timer not running.</span><br>
+          <span id="active-timer-elapsed">Elapsed: —</span> ·
+          <span id="active-timer-remaining">Remaining: —</span>
+        </p>
+      </section>
       <p><a href="{{ url_for('settings') }}">Change display text, colours, and background image.</a></p>
       <p id="status" role="status"></p>
       <p id="edit-controls-help" hidden>Drag a control card to rearrange it, then select Done editing.</p>
-      <div id="control-grid" class="control-grid">
-      <section class="control-card" data-control-id="timer">
-        <h2>60-minute timer</h2>
-        <form action="{{ url_for('update_timer', action='start') }}" method="post" class="inline-form">
-          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-          <button data-timer-action="start" type="submit">Start 60-minute timer</button>
-        </form>
-        <form action="{{ url_for('update_timer', action='reset') }}" method="post" class="inline-form">
-          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-          <button data-timer-action="reset" type="submit">Reset timer</button>
-        </form>
-      </section>
-      <section class="control-card" data-control-id="completion">
-        <h2>Room completion</h2>
-        <form action="{{ url_for('complete_room') }}" method="post" class="inline-form">
-          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-          <button id="complete-room" type="submit">Complete room</button>
-        </form>
-      </section>
-      <section class="control-card height-2" data-control-id="announcement">
-        <h2>Two-minute announcement</h2>
-        <form id="announcement-form" action="{{ url_for('send_announcement') }}" method="post">
-          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-          <label>Message <textarea name="message" maxlength="500" required></textarea></label>
-          <button id="send-hint" type="submit">Send for 2 minutes</button>
-        </form>
-        <h3>Hints sent this session</h3>
-        <ol id="hint-history" class="hint-history">
-          {% for hint in hints %}
-            <li>
-              <span class="hint-count">Hint {{ loop.index }}</span>
-              <span>{{ hint.message }}</span>
-              <time class="hint-timer" datetime="PT{{ hint.timer_remaining_seconds }}S">Timer: {{ "%02d:%02d"|format(hint.timer_remaining_seconds // 60, hint.timer_remaining_seconds % 60) }}</time>
-              <time datetime="{{ hint.given_at }}">{{ hint.given_at }} UTC</time>
-            </li>
-          {% else %}
-            <li id="no-hints">No hints sent yet.</li>
-          {% endfor %}
-        </ol>
-      </section>
-      <section class="control-card height-2" data-control-id="gpio" data-outputs='{{ gpio_outputs|tojson }}'>
-        <h2>GPIO controls</h2>
-        <button id="toggle-gpio-pause" type="button" data-paused="{{ gpio_paused|tojson }}">
-          {% if gpio_paused %}Resume GPIO events{% else %}Pause GPIO events{% endif %}
-        </button>
-        {% if gpio_outputs and gpio_available %}
-        <div class="gpio-outputs-list">
-          {% for output in gpio_outputs %}
-            <div class="gpio-control">
-              <span>{{ output }}</span>
-              <button data-gpio="{{ output }}" data-state="on">On</button>
-              <button data-gpio="{{ output }}" data-state="off">Off</button>
+      <div id="control-grid" class="control-grid two-column-grid">
+        <section class="control-card height-2" data-control-id="announcement">
+          <h2>Two-minute announcement</h2>
+          <form id="announcement-form" action="{{ url_for('send_announcement') }}" method="post">
+            <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+            <label>Message <textarea name="message" maxlength="500" required></textarea></label>
+            <button id="send-hint" type="submit">Send for 2 minutes</button>
+          </form>
+          <div class="preset-hint-picker">
+            <h3>Send a pre-set hint</h3>
+            <label>Choose a saved hint
+              <select id="hint-preset-select">
+                <option value="">Select a saved hint…</option>
+                {% for preset in hint_presets %}
+                  <option value="{{ preset.id }}" data-kind="{{ preset.kind }}">{{ preset.title }} ({{ preset.kind }})</option>
+                {% endfor %}
+              </select>
+            </label>
+            <button id="send-hint-preset" type="button" data-csrf="{{ csrf_token }}">Send saved hint</button>
+            <p><a href="{{ url_for('hint_library') }}">Manage saved hints</a></p>
+          </div>
+          <h3>Hints sent this session</h3>
+          <ol id="hint-history" class="hint-history">
+            {% for hint in hints %}
+              <li>
+                <span class="hint-count">Hint {{ loop.index }}</span>
+                <span>{{ hint.message }}</span>
+                {% if hint.media_type == 'image' %}
+                  <img class="hint-media-preview" src="{{ url_for('uploaded_file', filename=hint.media_filename) }}" alt="Hint image">
+                {% elif hint.media_type == 'video' %}
+                  <video class="hint-media-preview" src="{{ url_for('uploaded_file', filename=hint.media_filename) }}" controls></video>
+                {% endif %}
+                <time class="hint-timer" datetime="PT{{ hint.timer_remaining_seconds }}S">Timer: {{ "%02d:%02d"|format(hint.timer_remaining_seconds // 60, hint.timer_remaining_seconds % 60) }}</time>
+                <time datetime="{{ hint.given_at }}">{{ hint.given_at }} UTC</time>
+              </li>
+            {% else %}
+              <li id="no-hints">No hints sent yet.</li>
+            {% endfor %}
+          </ol>
+        </section>
+
+        <section class="control-card" data-control-id="timer">
+          <h2>60-minute timer</h2>
+          <form action="{{ url_for('update_timer', action='start') }}" method="post" class="inline-form">
+            <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+            <button data-timer-action="start" type="submit">Start 60-minute timer</button>
+          </form>
+          <form action="{{ url_for('update_timer', action='reset') }}" method="post" class="inline-form">
+            <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+            <button data-timer-action="reset" type="submit">Reset timer</button>
+          </form>
+
+          <div class="timer-adjust">
+            <h3>Adjust time</h3>
+            <p>Add time extends the total time available without affecting time taken. Remove time adds a penalty to time taken without affecting the total time.</p>
+            <div class="timer-adjust-buttons">
+              <button type="button" data-adjust="60">+1 min (add total time)</button>
+              <button type="button" data-adjust="-60">-1 min (add to time taken)</button>
+              <button type="button" data-adjust="30">+30s (add total time)</button>
+              <button type="button" data-adjust="-30">-30s (add to time taken)</button>
             </div>
-          {% endfor %}
-        </div>
-        {% elif gpio_outputs %}
-          <p>GPIO hardware is unavailable on this host.</p>
-        {% else %}
-          <p>No outputs configured. Set <code>GPIO_OUTPUTS</code> before starting the app.</p>
-        {% endif %}
-      </section>
+            <form id="timer-adjust-form" class="inline-form" method="post" action="{{ url_for('adjust_timer') }}">
+              <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+              <label>Seconds to adjust (positive adds total time, negative adds a penalty to time taken):
+                <input id="timer-adjust-seconds" name="seconds" type="number" value="60" inputmode="numeric">
+              </label>
+              <button id="timer-adjust-apply" type="submit">Apply</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="control-card height-2" data-control-id="gpio" data-outputs='{{ gpio_outputs|tojson }}'>
+          <div class="gpio-controls">
+            <form action="{{ url_for('complete_room') }}" method="post" class="inline-form">
+              <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+              <button id="complete-room" type="submit">Complete room</button>
+            </form>
+
+            <button id="toggle-gpio-pause" type="button" data-paused="{{ gpio_paused|tojson }}" class="{{ 'btn-paused' if gpio_paused else 'btn-active' }}">
+              {% if gpio_paused %}Resume room interaction{% else %}Pause room interaction{% endif %}
+            </button>
+
+            <button type="button" class="btn placeholder" disabled>Other action</button>
+            <button type="button" class="btn placeholder" disabled>Other action</button>
+          </div>
+
+          {% if gpio_outputs and gpio_available %}
+          <div class="gpio-outputs-list">
+            {% for output in gpio_outputs %}
+              <div class="gpio-control">
+                <span>{{ output }}</span>
+                <button data-gpio="{{ output }}" data-state="on">On</button>
+                <button data-gpio="{{ output }}" data-state="off">Off</button>
+              </div>
+            {% endfor %}
+          </div>
+          {% elif gpio_outputs %}
+            <p>GPIO hardware is unavailable on this host.</p>
+          {% endif %}
+        </section>
       </div>
     </main>
     <dialog id="preview-dialog">
@@ -115,5 +163,11 @@
     </dialog>
     <script>window.csrfToken = {{ csrf_token|tojson }};</script>
     <script src="{{ url_for('static', filename='admin.js', v='6') }}"></script>
+    <section id="action-log" class="action-log">
+      <h3>Action log (current run)</h3>
+      <ul id="action-log-list">
+        <li id="no-actions">No actions recorded for this run.</li>
+      </ul>
+    </section>
   </body>
 </html>

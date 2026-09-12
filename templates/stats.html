@@ -15,22 +15,36 @@
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
       <h2>Leaderboard</h2>
       <p>Ranked by time remaining (higher is better), then penalties, then hints.</p>
-      <table class="leaderboard" role="table">
+
+      <div class="leaderboard-controls">
+        <label>Filter teams: <input id="leaderboard-filter" placeholder="search team name"></label>
+        <label>Sort by: 
+          <select id="leaderboard-sort">
+            <option value="time_remaining_desc">Time remaining (best)</option>
+            <option value="time_taken_asc">Time taken (fastest)</option>
+            <option value="penalties_asc">Penalties (fewest)</option>
+            <option value="hints_asc">Hints (fewest)</option>
+            <option value="completed_at_asc">Finished (earliest)</option>
+          </select>
+        </label>
+      </div>
+
+      <table id="leaderboard-table" class="leaderboard" role="table">
         <thead>
           <tr><th>#</th><th>Team</th><th>Players</th><th>Time</th><th>Remaining</th><th>Hints</th><th>Penalties</th><th>Finished</th></tr>
         </thead>
         <tbody>
           {% for entry in leaderboard %}
-            <tr>
+            <tr data-time-taken="{{ entry.time_taken_seconds }}" data-time-remaining="{{ entry.time_remaining_seconds }}" data-penalties="{{ entry.penalties }}" data-hints="{{ entry.hints_used }}" data-completed-at="{{ entry.completed_at }}">
               <td>{{ loop.index }}</td>
-              <td>{{ entry.group_name }}</td>
+              <td class="team-name">{{ entry.group_name }}</td>
               <td>{{ entry.group_size }}</td>
-              <td>{{ entry.time_taken_seconds }}s</td>
-              <td>
+              <td class="time-taken">{{ (entry.time_taken_seconds // 3600)|int }}:{{ "%02d" % ((entry.time_taken_seconds % 3600) // 60) }}:{{ "%02d" % (entry.time_taken_seconds % 60) }}</td>
+              <td class="time-remaining">
                 {% if entry.time_remaining_seconds >= 0 %}
-                  {{ entry.time_remaining_seconds }}s
+                  {{ (entry.time_remaining_seconds // 3600)|int }}:{{ "%02d" % ((entry.time_remaining_seconds % 3600) // 60) }}:{{ "%02d" % (entry.time_remaining_seconds % 60) }}
                 {% else %}
-                  -{{ (-entry.time_remaining_seconds) }}s (overtime)
+                  -{{ ((-entry.time_remaining_seconds) // 3600)|int }}:{{ "%02d" % (((-entry.time_remaining_seconds) % 3600) // 60) }}:{{ "%02d" % ((-entry.time_remaining_seconds) % 60) }} (overtime)
                 {% endif %}
               </td>
               <td>{{ entry.hints_used }}</td>
@@ -42,6 +56,63 @@
           {% endfor %}
         </tbody>
       </table>
+
+      <script>
+      (function(){
+        const table = document.getElementById('leaderboard-table');
+        if (!table) return;
+        const tbody = table.querySelector('tbody');
+        const filter = document.getElementById('leaderboard-filter');
+        const sort = document.getElementById('leaderboard-sort');
+
+        function rowsArray() {
+          return Array.from(tbody.querySelectorAll('tr')).filter(r => r.dataset.timeTaken !== undefined || true);
+        }
+
+        function applyFilterAndSort() {
+          const q = filter.value.trim().toLowerCase();
+          let rows = Array.from(tbody.querySelectorAll('tr'));
+          rows = rows.filter((row) => {
+            const name = (row.querySelector('.team-name') && row.querySelector('.team-name').textContent) || '';
+            return q === '' || name.toLowerCase().includes(q);
+          });
+
+          const key = sort.value;
+          rows.sort((a,b) => {
+            const aTimeRem = Number(a.dataset.timeRemaining || 0);
+            const bTimeRem = Number(b.dataset.timeRemaining || 0);
+            const aTimeTaken = Number(a.dataset.timeTaken || 0);
+            const bTimeTaken = Number(b.dataset.timeTaken || 0);
+            const aPen = Number(a.dataset.penalties || 0);
+            const bPen = Number(b.dataset.penalties || 0);
+            const aHints = Number(a.dataset.hints || 0);
+            const bHints = Number(b.dataset.hints || 0);
+            const aComp = a.dataset.completedAt || '';
+            const bComp = b.dataset.completedAt || '';
+            switch(key) {
+              case 'time_remaining_desc': return bTimeRem - aTimeRem || aPen - bPen || aHints - bHints;
+              case 'time_taken_asc': return aTimeTaken - bTimeTaken || aPen - bPen || aHints - bHints;
+              case 'penalties_asc': return aPen - bPen || bTimeRem - aTimeRem;
+              case 'hints_asc': return aHints - bHints || bTimeRem - aTimeRem;
+              case 'completed_at_asc': return aComp.localeCompare(bComp);
+              default: return 0;
+            }
+          });
+
+          // clear and re-append
+          tbody.innerHTML = '';
+          rows.forEach((r, idx) => {
+            const clone = r.cloneNode(true);
+            clone.querySelector('td').textContent = idx + 1;
+            tbody.appendChild(clone);
+          });
+        }
+
+        filter.addEventListener('input', applyFilterAndSort);
+        sort.addEventListener('change', applyFilterAndSort);
+        applyFilterAndSort();
+      })();
+      </script>
 
     </main>
   </body>

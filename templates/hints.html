@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hint library</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='screen.css') }}">
+  </head>
+  <body class="admin-page">
+    <main class="panel">
+      <div class="panel-header">
+        <h1>Hint library</h1>
+        <a href="{{ url_for('admin') }}">Back to controls</a>
+      </div>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form method="post" action="{{ url_for('create_hint_preset') }}" enctype="multipart/form-data">
+        <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+        <label>Title <input name="title" maxlength="80" required></label>
+        <fieldset>
+          <legend>Type</legend>
+          <label><input type="radio" name="kind" value="text" checked> Text</label>
+          <label><input type="radio" name="kind" value="image"> Image</label>
+          <label><input type="radio" name="kind" value="video"> Video</label>
+        </fieldset>
+        <label>Message / caption <textarea name="message" maxlength="500"></textarea></label>
+        <label>File (required for image/video) <input name="media" type="file" accept=".gif,.jpeg,.jpg,.png,.webp,.mp4,.webm,.mov"></label>
+        <label><input type="checkbox" name="full_screen"> Show full screen when sent (image/video only)</label>
+        <button type="submit">Save hint</button>
+      </form>
+      <h2>Saved hints</h2>
+      <ul id="hint-preset-list" class="hint-history">
+        {% for preset in presets %}
+          <li>
+            <span class="hint-count">{{ preset.title }} ({{ preset.kind }}{% if preset.full_screen %}, full screen{% endif %})</span>
+            {% if preset.kind == 'text' %}
+              <span>{{ preset.message }}</span>
+            {% elif preset.kind == 'image' %}
+              <img class="hint-media-preview" src="{{ url_for('uploaded_file', filename=preset.media_filename) }}" alt="{{ preset.title }}">
+              {% if preset.message %}<span>{{ preset.message }}</span>{% endif %}
+            {% elif preset.kind == 'video' %}
+              <video class="hint-media-preview" src="{{ url_for('uploaded_file', filename=preset.media_filename) }}" controls></video>
+              {% if preset.message %}<span>{{ preset.message }}</span>{% endif %}
+            {% endif %}
+            <form method="post" action="{{ url_for('delete_hint_preset', preset_id=preset.id) }}" class="inline-form">
+              <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+              <button type="submit">Delete</button>
+            </form>
+          </li>
+        {% else %}
+          <li id="no-hint-presets">No saved hints yet.</li>
+        {% endfor %}
+      </ul>
+    </main>
+  </body>
+</html>

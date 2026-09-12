@@ -234,7 +234,7 @@ class HomeScreenTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             next(response.response),
-            b'event: display\ndata: {"title":"Welcome","message":"Your message appears here.","background_colour":"#102a43","accent_colour":"#f6c453","timer_started_at":null,"room_completed_at":null,"announcement":null,"announcement_expires_at":null,"background_image":null,"auto_hint_remaining_minutes":null,"auto_hint_message":null}\n\n',
+            b'event: display\ndata: {"title":"Welcome","message":"Your message appears here.","background_colour":"#102a43","accent_colour":"#f6c453","timer_started_at":null,"room_completed_at":null,"announcement":null,"announcement_expires_at":null,"background_image":null,"auto_hint_remaining_minutes":null,"auto_hint_message":null,"extra_time_seconds":0,"penalty_time_seconds":0,"announcement_media_type":null,"announcement_media_filename":null,"announcement_media_full_screen":false}\n\n',
         )
         response.close()
 
@@ -300,6 +300,42 @@ class HomeScreenTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.get_json()["room_completed_at"])
 
+    def test_adding_time_increases_total_time_without_changing_time_taken(self) -> None:
+        csrf_token = self.login()
+        self.client.post(
+            "/admin/timer/start",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        response = self.client.post(
+            "/admin/timer/adjust",
+            json={"seconds": 120},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["extra_time_seconds"], 120)
+        self.assertEqual(payload["penalty_time_seconds"], 0)
+
+    def test_removing_time_increases_time_taken_without_changing_total_time(self) -> None:
+        csrf_token = self.login()
+        self.client.post(
+            "/admin/timer/start",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        response = self.client.post(
+            "/admin/timer/adjust",
+            json={"seconds": -90},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["extra_time_seconds"], 0)
+        self.assertEqual(payload["penalty_time_seconds"], 90)
+
     def test_completed_room_result_records_group_and_time(self) -> None:
         csrf_token = self.login()
         self.client.post(
@@ -329,6 +365,46 @@ class HomeScreenTests(unittest.TestCase):
         self.assertEqual(response.get_json()["penalties"], 1)
         self.assertGreaterEqual(response.get_json()["time_taken_seconds"], 0)
         self.assertLessEqual(response.get_json()["time_remaining_seconds"], 3600)
+
+    def test_completed_room_result_reflects_time_adjustments(self) -> None:
+        csrf_token = self.login()
+        self.client.post(
+            "/admin/timer/start",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.client.post(
+            "/admin/timer/adjust",
+            json={"seconds": 300},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.client.post(
+            "/admin/timer/adjust",
+            json={"seconds": -60},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.client.post(
+            "/admin/complete",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        response = self.client.post(
+            "/admin/results",
+            json={
+                "group_name": "The Locksmiths",
+                "group_size": "4",
+                "hints_used": "0",
+                "penalties": "0",
+            },
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        payload = response.get_json()
+        # time_taken should include the 60 second penalty
+        self.assertGreaterEqual(payload["time_taken_seconds"], 60)
+        # total time budget is 3600 + 300 extra seconds, so remaining should
+        # reflect that budget minus time taken (well above the base 3600 - time_taken).
+        expected_remaining = 3600 + 300 - payload["time_taken_seconds"]
+        self.assertEqual(payload["time_remaining_seconds"], expected_remaining)
 
     def test_cannot_record_result_before_room_is_completed(self) -> None:
         csrf_token = self.login()
@@ -382,6 +458,78 @@ class HomeScreenTests(unittest.TestCase):
         self.assertIn(b"Hint 1", admin.data)
         self.assertIn(b"Timer: 60:00", admin.data)
         self.assertIn(b"Please return to the entrance.", admin.data)
+
+    def test_hint_library_can_create_send_and_delete_text_preset(self) -> None:
+        csrf_token = self.login()
+        create_response = self.client.post(
+            "/admin/hints",
+            json={"kind": "text", "title": "Look under the desk", "message": "Check the desk drawer."},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(create_response.status_code, 200)
+        preset = create_response.get_json()
+        self.assertEqual(preset["title"], "Look under the desk")
+
+        library_page = self.client.get("/admin/hints")
+        self.assertIn(b"Look under the desk", library_page.data)
+
+        self.client.post("/admin/timer/start", data={"csrf_token": csrf_token})
+        send_response = self.client.post(
+            f"/admin/hints/{preset['id']}/send",
+            json={},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(send_response.status_code, 200)
+        sent = send_response.get_json()
+        self.assertEqual(sent["announcement"], "Check the desk drawer.")
+        self.assertEqual(sent["hint"]["message"], "Check the desk drawer.")
+
+        delete_response = self.client.post(
+            f"/admin/hints/{preset['id']}/delete",
+            json={},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertTrue(delete_response.get_json()["deleted"])
+
+    def test_hint_library_can_create_and_send_image_preset(self) -> None:
+        csrf_token = self.login()
+        create_response = self.client.post(
+            "/admin/hints",
+            data={
+                "csrf_token": csrf_token,
+                "kind": "image",
+                "title": "Padlock clue",
+                "message": "Look closely at the numbers.",
+                "media": (BytesIO(b"\x89PNG\r\n\x1a\nimage-data"), "clue.png"),
+                "full_screen": "on",
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(create_response.status_code, 302)
+        library_page = self.client.get("/admin/hints")
+        self.assertIn(b"Padlock clue", library_page.data)
+        self.assertIn(b"full screen", library_page.data)
+        from pi_home_screen.display import DisplaySettingsStore
+
+        store = DisplaySettingsStore(str(Path(self.temporary_directory.name) / "screen.db"))
+        preset = store.get_hint_presets()[0]
+        self.assertEqual(preset.kind, "image")
+        self.assertRegex(preset.media_filename, r"^[0-9a-f]{32}\.png$")
+        self.assertTrue(preset.full_screen)
+
+        self.client.post("/admin/timer/start", data={"csrf_token": csrf_token})
+        send_response = self.client.post(
+            f"/admin/hints/{preset.id}/send",
+            json={},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(send_response.status_code, 200)
+        sent = send_response.get_json()
+        self.assertEqual(sent["announcement_media_type"], "image")
+        self.assertEqual(sent["announcement_media_filename"], preset.media_filename)
+        self.assertTrue(sent["announcement_media_full_screen"])
+        self.assertEqual(sent["hint"]["media_type"], "image")
 
     def test_starting_or_resetting_timer_clears_session_hints(self) -> None:
         csrf_token = self.login()

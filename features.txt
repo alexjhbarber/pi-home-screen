@@ -1,11 +1,11 @@
-video, image, sound hints
+DONE video, image, sound hints
 
-record leader board scored
+DONE record leader board scored
 
 DONE leave automatic hints for now
 
 DONE make sure pause event for gpio works
 
-make sound when hint sent
+DONE make sound when hint sent
 
-add and take away time 
+DONE add and take away timetill
