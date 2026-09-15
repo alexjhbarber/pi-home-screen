@@ -1,5 +1,7 @@
 {
   "language.label": "Idioma", "language.apply": "Cambiar idioma", "locale.en": "English", "locale.es": "Español",
+  "controls.pause_timer": "Pausar temporizador", "controls.resume_timer": "Reanudar temporizador",
+  "js.timer_paused": "Temporizador en pausa.", "js.timer_resumed": "Temporizador reanudado.", "js.pause_timer": "Pausar temporizador", "js.resume_timer": "Reanudar temporizador",
   "home.page_title": "Pantalla principal", "home.timer_aria": "Quedan 60 minutos", "home.last_team": "Último equipo", "home.announcement_image": "Imagen del anuncio",
   "admin.preview": "Abrir vista previa en directo", "admin.main_navigation": "Administración principal", "admin.edit_controls": "Editar controles", "admin.add_control": "Añadir control", "admin.sign_out": "Cerrar sesión", "admin.active_timer": "Temporizador activo", "admin.change_display": "Cambiar el texto, los colores y la imagen de fondo.", "admin.edit_help": "Arrastra una tarjeta de control para reorganizarla y selecciona Terminar edición.", "admin.action_log": "Registro de acciones (sesión actual)", "admin.no_actions": "No hay acciones registradas en esta sesión.",
   "nav.leaderboard": "Clasificación", "nav.admin": "Administración", "nav.settings": "Configuración", "nav.customisation": "Personalización", "nav.sounds": "Sonidos", "nav.gpio": "GPIO", "nav.hint_library": "Biblioteca de pistas",

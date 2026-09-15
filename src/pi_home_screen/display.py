@@ -22,6 +22,7 @@ class DisplaySettings:
     background_colour: str
     accent_colour: str
     timer_started_at: str | None = None
+    timer_paused_at: str | None = None
     room_completed_at: str | None = None
     announcement: str | None = None
     announcement_expires_at: str | None = None
@@ -128,6 +129,7 @@ class DisplaySettingsStore:
                 """
                 SELECT
                     title, message, background_colour, accent_colour, timer_started_at,
+                    timer_paused_at,
                     room_completed_at,
                     announcement, announcement_expires_at, background_image,
                     auto_hint_remaining_minutes, auto_hint_message,
@@ -228,7 +230,7 @@ class DisplaySettingsStore:
             result = connection.execute(
                 """
                 UPDATE display_settings
-                SET timer_started_at = ?, room_completed_at = NULL,
+                SET timer_started_at = ?, timer_paused_at = NULL, room_completed_at = NULL,
                     extra_time_seconds = 0, penalty_time_seconds = 0,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1 AND timer_started_at IS NULL
@@ -248,15 +250,49 @@ class DisplaySettingsStore:
         settings = self.get()
         if settings.timer_started_at is None:
             raise ValueError("Start the timer before completing the room.")
+        completed_at = settings.timer_paused_at or datetime.now(timezone.utc).isoformat()
         with closing(connect(self.database_path)) as connection:
             connection.execute(
                 """
                 UPDATE display_settings
-                SET room_completed_at = ?, updated_at = CURRENT_TIMESTAMP
+                SET timer_paused_at = NULL, room_completed_at = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1
                 """,
-                (datetime.now(timezone.utc).isoformat(),),
+                (completed_at,),
             )
+            connection.commit()
+        return self.get()
+
+    def toggle_timer_paused(self) -> DisplaySettings:
+        settings = self.get()
+        if settings.timer_started_at is None:
+            raise ValueError("Start the timer before pausing it.")
+        if settings.room_completed_at is not None:
+            raise ValueError("Reset the timer before pausing it.")
+
+        with closing(connect(self.database_path)) as connection:
+            if settings.timer_paused_at is None:
+                connection.execute(
+                    """
+                    UPDATE display_settings
+                    SET timer_paused_at = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                    """,
+                    (datetime.now(timezone.utc).isoformat(),),
+                )
+            else:
+                started_at = datetime.fromisoformat(settings.timer_started_at)
+                paused_at = datetime.fromisoformat(settings.timer_paused_at)
+                resumed_at = datetime.now(timezone.utc)
+                connection.execute(
+                    """
+                    UPDATE display_settings
+                    SET timer_started_at = ?, timer_paused_at = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                    """,
+                    ((started_at + (resumed_at - paused_at)).isoformat(),),
+                )
             connection.commit()
         return self.get()
 
@@ -320,8 +356,13 @@ class DisplaySettingsStore:
         timer_remaining_seconds = TIMER_DURATION_SECONDS + current_settings.extra_time_seconds
         if current_settings.timer_started_at is not None:
             started_at = datetime.fromisoformat(current_settings.timer_started_at)
+            elapsed_at = (
+                datetime.fromisoformat(current_settings.timer_paused_at)
+                if current_settings.timer_paused_at is not None
+                else now
+            )
             elapsed_seconds = (
-                int((now - started_at).total_seconds())
+                int((elapsed_at - started_at).total_seconds())
                 + current_settings.penalty_time_seconds
             )
             timer_remaining_seconds = (
@@ -921,7 +962,7 @@ class DisplaySettingsStore:
             connection.execute(
                 """
                 UPDATE display_settings
-                SET timer_started_at = ?, room_completed_at = NULL,
+                SET timer_started_at = ?, timer_paused_at = NULL, room_completed_at = NULL,
                     extra_time_seconds = 0, penalty_time_seconds = 0,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1

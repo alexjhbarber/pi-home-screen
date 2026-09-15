@@ -11,6 +11,7 @@ const teamName = document.querySelector("#team-name");
 const teamDetails = document.querySelector("#team-details");
 const soundManager = window.HomeAudio.createSoundManager(window.location.search);
 let timerStartedAt = null;
+let timerPausedAt = null;
 let roomCompletedAt = null;
 let announcementExpiresAt = null;
 let extraTimeSeconds = 0;
@@ -47,6 +48,7 @@ function updateDisplay(settings) {
     : "none";
   document.body.style.setProperty("--background-image", backgroundImage);
   timerStartedAt = settings.timer_started_at;
+  timerPausedAt = settings.timer_paused_at;
   roomCompletedAt = settings.room_completed_at;
   announcementExpiresAt = settings.announcement_expires_at;
   extraTimeSeconds = settings.extra_time_seconds || 0;
@@ -145,7 +147,9 @@ function updateLatestResult(latestResult) {
 
 function updateTimer() {
   const elapsedSeconds = timerStartedAt
-    ? Math.floor((Date.now() - Date.parse(timerStartedAt)) / 1000) + penaltyTimeSeconds
+    ? Math.floor(
+      (Date.parse(timerPausedAt || new Date()) - Date.parse(timerStartedAt)) / 1000,
+    ) + penaltyTimeSeconds
     : 0;
   const remainingSeconds = (60 * 60 + extraTimeSeconds) - elapsedSeconds;
   timer.textContent = formatDuration(remainingSeconds);

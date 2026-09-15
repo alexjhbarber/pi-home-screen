@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from threading import Timer
 
 from flask import Flask
@@ -85,7 +86,15 @@ class DisplayRuntime:
             or settings.auto_hint_message is None
         ):
             return
-        delay = (60 - settings.auto_hint_remaining_minutes) * 60
+        started_at = datetime.fromisoformat(settings.timer_started_at)
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        elapsed_seconds = max(
+            0,
+            (datetime.now(timezone.utc) - started_at).total_seconds(),
+        )
+        target_seconds = (60 - settings.auto_hint_remaining_minutes) * 60
+        delay = max(0, target_seconds - elapsed_seconds)
 
         def send_if_room_is_incomplete() -> None:
             current = self.store.get()

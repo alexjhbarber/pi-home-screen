@@ -11,6 +11,7 @@ const completionDialog = document.querySelector("#completion-dialog");
 const completionForm = document.querySelector("#completion-form");
 const completionTime = document.querySelector("#completion-time");
 const gpioPauseButton = document.querySelector("#toggle-gpio-pause");
+const timerPauseButton = document.querySelector("#toggle-timer-pause");
 const activeTimerState = document.querySelector("#active-timer-state");
 const activeTimerElapsed = document.querySelector("#active-timer-elapsed");
 const activeTimerRemaining = document.querySelector("#active-timer-remaining");
@@ -65,8 +66,8 @@ function updateActiveTimerDisplay() {
     return;
   }
   const startedAt = new Date(activeTimerSnapshot.timer_started_at);
-  const completedAt = activeTimerSnapshot.room_completed_at
-    ? new Date(activeTimerSnapshot.room_completed_at)
+  const completedAt = activeTimerSnapshot.room_completed_at || activeTimerSnapshot.timer_paused_at
+    ? new Date(activeTimerSnapshot.room_completed_at || activeTimerSnapshot.timer_paused_at)
     : new Date();
   const extraTimeSeconds = Number(activeTimerSnapshot.extra_time_seconds || 0);
   const penaltyTimeSeconds = Number(activeTimerSnapshot.penalty_time_seconds || 0);
@@ -91,6 +92,7 @@ async function refreshActiveTimer() {
     const payload = await response.json();
     activeTimerSnapshot = {
       timer_started_at: payload.timer_started_at,
+      timer_paused_at: payload.timer_paused_at,
       room_completed_at: payload.room_completed_at,
       extra_time_seconds: payload.extra_time_seconds,
       penalty_time_seconds: payload.penalty_time_seconds,
@@ -116,6 +118,7 @@ function setCompletionMessage(text) {
 function updateActiveTimerSnapshot(settings) {
   activeTimerSnapshot = {
     timer_started_at: settings.timer_started_at,
+    timer_paused_at: settings.timer_paused_at,
     room_completed_at: settings.room_completed_at,
     extra_time_seconds: settings.extra_time_seconds,
     penalty_time_seconds: settings.penalty_time_seconds,
@@ -201,6 +204,36 @@ function initGpioPauseButton() {
       );
       setStatusText(window.translate(
         paused ? "js.room_input_paused" : "js.room_input_active",
+      ));
+      refreshActions();
+    } catch (error) {
+      setStatusText(error.message);
+    }
+  });
+}
+
+function updateTimerPauseButton(settings) {
+  if (!timerPauseButton) return;
+  const paused = Boolean(settings.timer_paused_at);
+  timerPauseButton.dataset.paused = String(paused);
+  timerPauseButton.classList.toggle("btn-paused", paused);
+  timerPauseButton.classList.toggle("btn-active", !paused);
+  timerPauseButton.textContent = window.translate(
+    paused ? "js.resume_timer" : "js.pause_timer",
+  );
+}
+
+function initTimerPauseButton() {
+  if (!timerPauseButton) return;
+
+  timerPauseButton.addEventListener("click", async () => {
+    try {
+      const settings = await post("/admin/timer/pause");
+      updateTimerPauseButton(settings);
+      updateActiveTimerSnapshot(settings);
+      updateActiveTimerDisplay();
+      setStatusText(window.translate(
+        settings.timer_paused_at ? "js.timer_paused" : "js.timer_resumed",
       ));
       refreshActions();
     } catch (error) {
@@ -475,6 +508,7 @@ function initCompletionDialogClose() {
 
 function initPage() {
   initGpioPauseButton();
+  initTimerPauseButton();
   initGpioButtons();
   initGpioOutputActionButtons();
   initTimerActionButtons();

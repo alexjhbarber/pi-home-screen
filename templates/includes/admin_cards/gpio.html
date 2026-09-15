@@ -9,6 +9,10 @@
       {% if gpio_paused %}{{ t("controls.resume_interaction") }}{% else %}{{ t("controls.pause_interaction") }}{% endif %}
     </button>
 
+    <button id="toggle-timer-pause" type="button" data-paused="{{ settings.timer_paused_at|tojson }}" class="{{ 'btn-paused' if settings.timer_paused_at else 'btn-active' }}">
+      {% if settings.timer_paused_at %}{{ t("controls.resume_timer") }}{% else %}{{ t("controls.pause_timer") }}{% endif %}
+    </button>
+
   </div>
 
   <section class="gpio-extra-buttons" aria-labelledby="gpio-extra-buttons-title">

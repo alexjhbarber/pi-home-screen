@@ -155,6 +155,7 @@ def initialize(database_path: Path | str) -> None:
             connection.execute("DROP TABLE gpio_output_actions_legacy")
         for column in (
             "timer_started_at TEXT",
+            "timer_paused_at TEXT",
             "room_completed_at TEXT",
             "announcement TEXT",
             "announcement_expires_at TEXT",

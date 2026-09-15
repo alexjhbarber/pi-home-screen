@@ -465,16 +465,23 @@ def register_admin_routes(app: Flask, runtime: DisplayRuntime) -> None:
     def update_timer(action: str) -> Response:
         require_admin()
         require_csrf()
-        if action == "start":
-            settings = store.start_timer()
-            runtime.record_action("timer", "Started 60-minute timer")
-        elif action == "reset":
-            settings = store.reset_timer()
-            runtime.record_action("timer", "Reset timer")
-        else:
-            abort(404)
+        try:
+            if action == "start":
+                settings = store.start_timer()
+                runtime.record_action("timer", "Started 60-minute timer")
+            elif action == "reset":
+                settings = store.reset_timer()
+                runtime.record_action("timer", "Reset timer")
+            elif action == "pause":
+                settings = store.toggle_timer_paused()
+                description = "Paused timer" if settings.timer_paused_at else "Resumed timer"
+                runtime.record_action("timer", description)
+            else:
+                abort(404)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
         runtime.publish(settings)
-        if action == "start":
+        if action in ("start", "pause") and settings.timer_paused_at is None:
             runtime.schedule_automatic_hint(settings)
         else:
             runtime.cancel_automatic_hint()

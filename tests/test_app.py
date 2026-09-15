@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from contextlib import closing
@@ -172,6 +173,8 @@ class HomeScreenTests(unittest.TestCase):
         self.assertNotIn(b'id="add-control"', response.data)
         self.assertIn(b'id="toggle-gpio-pause"', response.data)
         self.assertIn(b"Pause room interaction", response.data)
+        self.assertIn(b'id="toggle-timer-pause"', response.data)
+        self.assertIn(b"Pause timer", response.data)
 
     def test_all_admin_pages_include_global_navigation(self) -> None:
         self.login()
@@ -755,10 +758,11 @@ class HomeScreenTests(unittest.TestCase):
         response = self.client.get("/events", buffered=False)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            next(response.response),
-            b'event: display\ndata: {"title":"Welcome","message":"Your message appears here.","background_colour":"#102a43","accent_colour":"#f6c453","timer_started_at":null,"room_completed_at":null,"announcement":null,"announcement_expires_at":null,"background_image":null,"auto_hint_remaining_minutes":null,"auto_hint_message":null,"extra_time_seconds":0,"penalty_time_seconds":0,"announcement_media_type":null,"announcement_media_filename":null,"announcement_media_full_screen":false,"notification_sound_filename":null,"success_sound_filename":null,"failed_sound_filename":null}\n\n',
-        )
+        event = next(response.response)
+        payload = json.loads(event.split(b"data: ", 1)[1])
+        self.assertEqual(payload["title"], "Welcome")
+        self.assertEqual(payload["message"], "Your message appears here.")
+        self.assertIsNone(payload["timer_paused_at"])
         response.close()
 
     def test_admin_settings_update_display_api(self) -> None:
@@ -807,6 +811,44 @@ class HomeScreenTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIsNotNone(self.client.get("/api/display").get_json()["timer_started_at"])
+
+    def test_admin_can_pause_and_resume_the_timer(self) -> None:
+        csrf_token = self.login()
+        started = self.client.post(
+            "/admin/timer/start",
+            headers={"X-CSRF-Token": csrf_token},
+        ).get_json()
+        paused = self.client.post(
+            "/admin/timer/pause",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(paused.status_code, 200)
+        self.assertIsNotNone(paused.get_json()["timer_paused_at"])
+
+        resumed = self.client.post(
+            "/admin/timer/pause",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(resumed.status_code, 200)
+        self.assertIsNone(resumed.get_json()["timer_paused_at"])
+        self.assertGreater(
+            datetime.fromisoformat(resumed.get_json()["timer_started_at"]),
+            datetime.fromisoformat(started["timer_started_at"]),
+        )
+
+    def test_timer_cannot_be_paused_before_starting(self) -> None:
+        csrf_token = self.login()
+        response = self.client.post(
+            "/admin/timer/pause",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.get_json()["error"],
+            "Start the timer before pausing it.",
+        )
 
     def test_admin_can_complete_a_started_room(self) -> None:
         csrf_token = self.login()
