@@ -1,0 +1,4 @@
+<script>window.csrfToken = {{ csrf_token|tojson }}; window.i18n = {{ client_translations("admin")|tojson }};</script>
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
+<script src="{{ url_for('static', filename='admin-dom.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='admin.js', v='7') }}"></script>

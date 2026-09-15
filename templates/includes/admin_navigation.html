@@ -1,0 +1,34 @@
+<nav class="admin-navigation" aria-label="{{ t("admin.main_navigation") }}">
+  <div class="admin-navigation-actions">
+    <h1 class="admin-navigation-title">{{ settings.title }}</h1>
+    <a href="{{ url_for('admin') }}">{{ t("nav.admin") }}</a>
+    <a href="{{ url_for('statistics') }}">{{ t("nav.leaderboard") }}</a>
+    <details class="admin-navigation-menu">
+      <summary>{{ t("nav.settings") }}</summary>
+      <div>
+        <a href="{{ url_for('settings') }}">{{ t("nav.customisation") }}</a>
+        <a href="{{ url_for('sound_settings') }}">{{ t("nav.sounds") }}</a>
+        <a href="{{ url_for('gpio_settings') }}">{{ t("nav.gpio") }}</a>
+        <a href="{{ url_for('hint_library') }}">{{ t("nav.hint_library") }}</a>
+      </div>
+    </details>
+    {% if settings is defined %}
+      <button id="open-preview" type="button">{{ t("admin.preview") }}</button>
+      <form action="{{ url_for('admin_logout') }}" method="post">
+        <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+        <button type="submit">{{ t("admin.sign_out") }}</button>
+      </form>
+    {% endif %}
+
+    {% if settings is defined %}
+    <div class="admin-navigation-summary">
+      <section class="admin-navigation-timer" aria-live="polite" aria-label="{{ t("admin.active_timer") }}">
+        <span class="admin-navigation-timer-label">{{ t("admin.active_timer") }}</span>
+        <span id="active-timer-state">{{ t("js.timer_not_running") }}</span>
+        <span id="active-timer-elapsed">{{ t("js.elapsed", value="—") }}</span>
+        <span id="active-timer-remaining">{{ t("js.remaining", value="—") }}</span>
+      </section>
+    </div>
+  {% endif %}
+  </div>
+</nav>

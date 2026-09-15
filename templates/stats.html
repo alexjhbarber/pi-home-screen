@@ -1,37 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ current_locale }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Room statistics</title>
+    <title>{{ t("stats.title") }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='2') }}">
   </head>
   <body class="admin-page">
     <main class="panel">
+      {% include "includes/admin_navigation.html" %}
       <div class="panel-header">
-        <h1>Room statistics</h1>
-        <a href="{{ url_for('admin') }}">Back to controls</a>
+        <h1>{{ t("stats.title") }}</h1>
       </div>
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
-      <h2>Leaderboard</h2>
-      <p>Ranked by time remaining (higher is better), then penalties, then hints.</p>
+      <h2>{{ t("stats.leaderboard") }}</h2>
+      <p>{{ t("stats.description") }}</p>
 
       <div class="leaderboard-controls">
-        <label>Filter teams: <input id="leaderboard-filter" placeholder="search team name"></label>
-        <label>Sort by: 
+        <label>{{ t("stats.filter") }} <input id="leaderboard-filter" placeholder="{{ t("stats.search") }}"></label>
+        <label>{{ t("stats.sort") }}
           <select id="leaderboard-sort">
-            <option value="time_remaining_desc">Time remaining (best)</option>
-            <option value="time_taken_asc">Time taken (fastest)</option>
-            <option value="penalties_asc">Penalties (fewest)</option>
-            <option value="hints_asc">Hints (fewest)</option>
-            <option value="completed_at_asc">Finished (earliest)</option>
+            <option value="time_remaining_desc">{{ t("stats.remaining_best") }}</option>
+            <option value="time_taken_asc">{{ t("stats.taken_fastest") }}</option>
+            <option value="penalties_asc">{{ t("stats.penalties_fewest") }}</option>
+            <option value="hints_asc">{{ t("stats.hints_fewest") }}</option>
+            <option value="completed_at_asc">{{ t("stats.finished_earliest") }}</option>
           </select>
         </label>
       </div>
 
       <table id="leaderboard-table" class="leaderboard" role="table">
         <thead>
-          <tr><th>#</th><th>Team</th><th>Players</th><th>Time</th><th>Remaining</th><th>Hints</th><th>Penalties</th><th>Finished</th></tr>
+          <tr><th>#</th><th>{{ t("stats.team") }}</th><th>{{ t("stats.players") }}</th><th>{{ t("stats.time") }}</th><th>{{ t("stats.remaining") }}</th><th>{{ t("stats.hints") }}</th><th>{{ t("stats.penalties") }}</th><th>{{ t("stats.finished") }}</th></tr>
         </thead>
         <tbody>
           {% for entry in leaderboard %}
@@ -44,7 +44,7 @@
                 {% if entry.time_remaining_seconds >= 0 %}
                   {{ (entry.time_remaining_seconds // 3600)|int }}:{{ "%02d" % ((entry.time_remaining_seconds % 3600) // 60) }}:{{ "%02d" % (entry.time_remaining_seconds % 60) }}
                 {% else %}
-                  -{{ ((-entry.time_remaining_seconds) // 3600)|int }}:{{ "%02d" % (((-entry.time_remaining_seconds) % 3600) // 60) }}:{{ "%02d" % ((-entry.time_remaining_seconds) % 60) }} (overtime)
+                  -{{ ((-entry.time_remaining_seconds) // 3600)|int }}:{{ "%02d" % (((-entry.time_remaining_seconds) % 3600) // 60) }}:{{ "%02d" % ((-entry.time_remaining_seconds) % 60) }} ({{ t("stats.overtime") }})
                 {% endif %}
               </td>
               <td>{{ entry.hints_used }}</td>
@@ -52,10 +52,13 @@
               <td><time datetime="{{ entry.completed_at }}">{{ entry.completed_at }} UTC</time></td>
             </tr>
           {% else %}
-            <tr><td colspan="8">No completed teams yet.</td></tr>
+            <tr><td colspan="8">{{ t("stats.none") }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
+      <template id="leaderboard-empty-row">
+        <tr><td colspan="8">{{ t("stats.none") }}</td></tr>
+      </template>
 
       <script>
       (function(){
@@ -64,14 +67,14 @@
         const tbody = table.querySelector('tbody');
         const filter = document.getElementById('leaderboard-filter');
         const sort = document.getElementById('leaderboard-sort');
-
-        function rowsArray() {
-          return Array.from(tbody.querySelectorAll('tr')).filter(r => r.dataset.timeTaken !== undefined || true);
-        }
+        const leaderboardRows = Array.from(
+          tbody.querySelectorAll('tr[data-time-taken]'),
+        );
+        const emptyRowTemplate = document.getElementById('leaderboard-empty-row');
 
         function applyFilterAndSort() {
           const q = filter.value.trim().toLowerCase();
-          let rows = Array.from(tbody.querySelectorAll('tr'));
+          let rows = [...leaderboardRows];
           rows = rows.filter((row) => {
             const name = (row.querySelector('.team-name') && row.querySelector('.team-name').textContent) || '';
             return q === '' || name.toLowerCase().includes(q);
@@ -99,13 +102,19 @@
             }
           });
 
-          // clear and re-append
-          tbody.innerHTML = '';
-          rows.forEach((r, idx) => {
-            const clone = r.cloneNode(true);
-            clone.querySelector('td').textContent = idx + 1;
-            tbody.appendChild(clone);
+          if (rows.length === 0) {
+            tbody.replaceChildren(
+              emptyRowTemplate.content.firstElementChild.cloneNode(true),
+            );
+            return;
+          }
+
+          const renderedRows = rows.map((row, index) => {
+            const clone = row.cloneNode(true);
+            clone.querySelector('td').textContent = index + 1;
+            return clone;
           });
+          tbody.replaceChildren(...renderedRows);
         }
 
         filter.addEventListener('input', applyFilterAndSort);
@@ -114,6 +123,8 @@
       })();
       </script>
 
+      {% include "includes/language_selector.html" %}
     </main>
+    {% include "includes/admin_scripts.html" %}
   </body>
 </html>

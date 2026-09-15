@@ -15,6 +15,7 @@ dependencies = [
 
 [tool.poetry]
 packages = [{include = "pi_home_screen", from = "src"}]
+include = [{path = "src/pi_home_screen/translations/*.json", format = ["sdist", "wheel"]}]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

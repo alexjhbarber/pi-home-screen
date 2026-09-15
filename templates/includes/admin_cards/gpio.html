@@ -1,0 +1,39 @@
+<section class="control-card height-2" data-control-id="gpio" data-outputs='{{ gpio_outputs|tojson }}'>
+  <div class="gpio-controls">
+    <form action="{{ url_for('complete_room') }}" method="post" class="inline-form">
+      <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+      <button id="complete-room" type="submit">{{ t("controls.complete_room") }}</button>
+    </form>
+
+    <button id="toggle-gpio-pause" type="button" data-paused="{{ gpio_paused|tojson }}" class="{{ 'btn-paused' if gpio_paused else 'btn-active' }}">
+      {% if gpio_paused %}{{ t("controls.resume_interaction") }}{% else %}{{ t("controls.pause_interaction") }}{% endif %}
+    </button>
+
+  </div>
+
+  <section class="gpio-extra-buttons" aria-labelledby="gpio-extra-buttons-title">
+    {% for action in gpio_output_actions %}
+      <button
+        type="button"
+        data-gpio-action="{{ action.id }}"
+        data-gpio-action-label="{{ action.label }}"
+      >{{ action.label }}</button>
+    {% else %}
+      <p id="no-gpio-output-actions">{{ t("gpio.no_actions") }}</p>
+    {% endfor %}
+  </section>
+
+  {% if gpio_outputs and gpio_available %}
+    <div class="gpio-outputs-list">
+      {% for output in gpio_outputs %}
+        <div class="gpio-control">
+          <span>{{ output }}</span>
+          <button data-gpio="{{ output }}" data-state="on">{{ t("controls.on") }}</button>
+          <button data-gpio="{{ output }}" data-state="off">{{ t("controls.off") }}</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% elif gpio_outputs %}
+    <p>{{ t("gpio.unavailable") }}</p>
+  {% endif %}
+</section>

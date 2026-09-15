@@ -23,6 +23,17 @@ For this built-in live-update broker, run one application worker. If the
 application later needs multiple workers or multiple Pis, replace the broker
 with a shared service such as Redis pub/sub.
 
+## Languages
+
+English is the default language. Use the language selector on any rendered
+page to choose a supported language; the choice is retained in that browser
+session. Set `DEFAULT_LOCALE` to change the default when needed.
+
+Catalogs live in `src/pi_home_screen/translations/`. To add a language, copy
+`en.json` to a new locale code, translate every value, then add that code and
+optionally its display name to `SUPPORTED_LOCALES` and `LOCALE_NAMES` in
+`create_app`.
+
 ## GPIO
 
 The optional `GPIO_OUTPUTS` variable maps a friendly output name to a BCM GPIO

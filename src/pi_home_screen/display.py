@@ -33,8 +33,11 @@ class DisplaySettings:
     announcement_media_type: str | None = None
     announcement_media_filename: str | None = None
     announcement_media_full_screen: bool = False
+    notification_sound_filename: str | None = None
+    success_sound_filename: str | None = None
+    failed_sound_filename: str | None = None
 
-    def to_dict(self) -> dict[str, str | None]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -47,7 +50,7 @@ class Hint:
     media_type: str | None = None
     media_filename: str | None = None
 
-    def to_dict(self) -> dict[str, int | str]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -61,7 +64,7 @@ class HintPreset:
     created_at: str
     full_screen: bool = False
 
-    def to_dict(self) -> dict[str, int | str | None]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -82,7 +85,7 @@ class CompletionResult:
     time_taken_seconds: int
     time_remaining_seconds: int
 
-    def to_dict(self) -> dict[str, int | str]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -94,6 +97,20 @@ class GpioMapping:
 
 
 @dataclass(frozen=True)
+class GpioOutputAction:
+    id: int
+    title: str
+    output_name: str | None
+    pin: int | None
+    state: str
+
+    @property
+    def label(self) -> str:
+        """Compatibility alias for configured-output actions."""
+        return self.title
+
+
+@dataclass(frozen=True)
 class GpioActivity:
     pin: int
     event: str
@@ -102,8 +119,8 @@ class GpioActivity:
 
 
 class DisplaySettingsStore:
-    def __init__(self, database_path: Path) -> None:
-        self.database_path = database_path
+    def __init__(self, database_path: Path | str) -> None:
+        self.database_path = Path(database_path)
 
     def get(self) -> DisplaySettings:
         with closing(connect(self.database_path)) as connection:
@@ -116,14 +133,53 @@ class DisplaySettingsStore:
                     auto_hint_remaining_minutes, auto_hint_message,
                     extra_time_seconds, penalty_time_seconds,
                     announcement_media_type, announcement_media_filename,
-                    announcement_media_full_screen
+                    announcement_media_full_screen,
+                    notification_sound_filename, success_sound_filename, failed_sound_filename
                 FROM display_settings
                 WHERE id = 1
                 """
             ).fetchone()
-        values = dict(row)
-        values["announcement_media_full_screen"] = bool(values["announcement_media_full_screen"])
+        values = self._settings_from_row(row)
+        try:
+            if self._announcement_has_expired(values.get("announcement_expires_at")):
+                self._clear_announcement_fields()
+                self._apply_cleared_announcement_values(values)
+        except Exception:
+            pass
         return DisplaySettings(**values)
+
+    def clear_expired_announcement(self) -> bool:
+        with closing(connect(self.database_path)) as conn:
+            row = conn.execute(
+                "SELECT announcement_expires_at FROM display_settings WHERE id = 1"
+            ).fetchone()
+            if row is None:
+                return False
+        try:
+            if not self._announcement_has_expired(row["announcement_expires_at"]):
+                return False
+            self._clear_announcement_fields()
+            return True
+        except Exception:
+            return False
+        return False
+
+    def cancel_announcement(self) -> DisplaySettings | None:
+        with closing(connect(self.database_path)) as connection:
+            result = connection.execute(
+                """
+                UPDATE display_settings
+                SET announcement = NULL, announcement_expires_at = NULL,
+                    announcement_media_type = NULL, announcement_media_filename = NULL,
+                    announcement_media_full_screen = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                    AND (announcement IS NOT NULL OR announcement_media_filename IS NOT NULL)
+                """
+            )
+            if result.rowcount == 0:
+                return None
+            connection.commit()
+        return self.get()
 
     def update(
         self,
@@ -166,8 +222,26 @@ class DisplaySettingsStore:
     def start_timer(self) -> DisplaySettings:
         return self._update_timer(datetime.now(timezone.utc).isoformat())
 
+    def start_timer_if_not_running(self) -> DisplaySettings | None:
+        started_at = datetime.now(timezone.utc).isoformat()
+        with closing(connect(self.database_path)) as connection:
+            result = connection.execute(
+                """
+                UPDATE display_settings
+                SET timer_started_at = ?, room_completed_at = NULL,
+                    extra_time_seconds = 0, penalty_time_seconds = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1 AND timer_started_at IS NULL
+                """,
+                (started_at,),
+            )
+            if result.rowcount == 0:
+                return None
+            connection.execute("DELETE FROM hints")
+            connection.commit()
+        return self.get()
+
     def reset_timer(self) -> DisplaySettings:
-        # When resetting the timer via admin, preserve previously given hints.
         return self._update_timer(None, clear_hints=False)
 
     def complete_room(self) -> DisplaySettings:
@@ -246,8 +320,10 @@ class DisplaySettingsStore:
         timer_remaining_seconds = TIMER_DURATION_SECONDS + current_settings.extra_time_seconds
         if current_settings.timer_started_at is not None:
             started_at = datetime.fromisoformat(current_settings.timer_started_at)
-            elapsed_seconds = int((now - started_at).total_seconds()) + current_settings.penalty_time_seconds
-            # Allow negative remaining seconds so announcements capture overtime situations
+            elapsed_seconds = (
+                int((now - started_at).total_seconds())
+                + current_settings.penalty_time_seconds
+            )
             timer_remaining_seconds = (
                 TIMER_DURATION_SECONDS + current_settings.extra_time_seconds - elapsed_seconds
             )
@@ -316,7 +392,7 @@ class DisplaySettingsStore:
         time_remaining_seconds: int
         completed_at: str
 
-        def to_dict(self) -> dict[str, int | str]:
+        def to_dict(self) -> dict[str, object]:
             return asdict(self)
 
     def get_leaderboard(self) -> list[LeaderboardEntry]:
@@ -331,7 +407,10 @@ class DisplaySettingsStore:
                 SELECT group_name, group_size, hints_used, penalties,
                        time_taken_seconds, time_remaining_seconds, completed_at
                 FROM room_results
-                ORDER BY time_remaining_seconds DESC, penalties ASC, hints_used ASC, completed_at ASC
+                ORDER BY time_remaining_seconds DESC,
+                         penalties ASC,
+                         hints_used ASC,
+                         completed_at ASC
                 """
             ).fetchall()
             return [
@@ -342,7 +421,18 @@ class DisplaySettingsStore:
     def get_latest_result(self) -> CompletionResult | None:
         with closing(connect(self.database_path)) as connection:
             row = connection.execute(
-                "SELECT group_name, group_size, hints_used, penalties, time_taken_seconds, time_remaining_seconds FROM room_results ORDER BY id DESC LIMIT 1"
+                """
+                SELECT
+                    group_name,
+                    group_size,
+                    hints_used,
+                    penalties,
+                    time_taken_seconds,
+                    time_remaining_seconds
+                FROM room_results
+                ORDER BY id DESC
+                LIMIT 1
+                """
             ).fetchone()
             if row is None:
                 return None
@@ -365,8 +455,15 @@ class DisplaySettingsStore:
 
         started_at = datetime.fromisoformat(settings.timer_started_at)
         completed_at = datetime.fromisoformat(settings.room_completed_at)
-        time_taken_seconds = max(0, int((completed_at - started_at).total_seconds())) + settings.penalty_time_seconds
-        time_remaining_seconds = TIMER_DURATION_SECONDS + settings.extra_time_seconds - time_taken_seconds
+        time_taken_seconds = (
+            max(0, int((completed_at - started_at).total_seconds()))
+            + settings.penalty_time_seconds
+        )
+        time_remaining_seconds = (
+            TIMER_DURATION_SECONDS
+            + settings.extra_time_seconds
+            - time_taken_seconds
+        )
         with closing(connect(self.database_path)) as connection:
             connection.execute(
                 """
@@ -439,14 +536,20 @@ class DisplaySettingsStore:
             if not message_text:
                 raise ValueError("Text hints require message content.")
             if len(message_text) > MAX_MESSAGE_LENGTH:
-                raise ValueError(f"Hint message can contain at most {MAX_MESSAGE_LENGTH} characters.")
+                raise ValueError(
+                    f"Hint message can contain at most {MAX_MESSAGE_LENGTH} characters."
+                )
             media_filename = None
         else:
             if not media_filename:
                 raise ValueError(f"A {kind} file is required.")
             if len(message_text) > MAX_MESSAGE_LENGTH:
-                raise ValueError(f"Hint caption can contain at most {MAX_MESSAGE_LENGTH} characters.")
-        is_full_screen = 1 if (kind != "text" and full_screen in (True, "on", "true", "1", 1)) else 0
+                raise ValueError(
+                    f"Hint caption can contain at most {MAX_MESSAGE_LENGTH} characters."
+                )
+        is_full_screen = 1 if (
+            kind != "text" and full_screen in (True, "on", "true", "1", 1)
+        ) else 0
         with closing(connect(self.database_path)) as connection:
             preset_id = connection.execute(
                 """
@@ -464,7 +567,12 @@ class DisplaySettingsStore:
                 "SELECT id, kind, title, message, media_filename, created_at, full_screen"
                 " FROM hint_presets ORDER BY id DESC"
             )
-            return [HintPreset(**{**dict(row), "full_screen": bool(row["full_screen"])}) for row in rows]
+            return [
+                HintPreset(
+                    **{**dict(row), "full_screen": bool(row["full_screen"])}
+                )
+                for row in rows
+            ]
 
     def get_hint_preset(self, preset_id: int) -> HintPreset | None:
         with closing(connect(self.database_path)) as connection:
@@ -502,15 +610,68 @@ class DisplaySettingsStore:
             )
             connection.commit()
 
+    def update_sounds(
+        self,
+        notification_filename: str | None = None,
+        success_filename: str | None = None,
+        failed_filename: str | None = None,
+        remove_notification: bool = False,
+        remove_success: bool = False,
+        remove_failed: bool = False,
+    ) -> DisplaySettings:
+        current = self.get()
+        new_notification = (
+            None
+            if remove_notification
+            else (
+                notification_filename
+                if notification_filename is not None
+                else current.notification_sound_filename
+            )
+        )
+        new_success = (
+            None
+            if remove_success
+            else (
+                success_filename
+                if success_filename is not None
+                else current.success_sound_filename
+            )
+        )
+        new_failed = (
+            None
+            if remove_failed
+            else (
+                failed_filename
+                if failed_filename is not None
+                else current.failed_sound_filename
+            )
+        )
+        with closing(connect(self.database_path)) as connection:
+            connection.execute(
+                """
+                UPDATE display_settings
+                SET notification_sound_filename = ?,
+                    success_sound_filename = ?,
+                    failed_sound_filename = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """,
+                (new_notification, new_success, new_failed),
+            )
+            connection.commit()
+        return self.get()
+
     def get_gpio_mappings(self) -> list[GpioMapping]:
         with closing(connect(self.database_path)) as connection:
-            rows = connection.execute("SELECT pin, event, preset_id FROM gpio_mappings ORDER BY pin")
-            mappings = []
-            for row in rows:
-                d = dict(row)
-                d["preset_id"] = d.get("preset_id") if d.get("preset_id") is not None else None
-                mappings.append(GpioMapping(**d))
-            return mappings
+            rows = connection.execute(
+                "SELECT pin, event, preset_id FROM gpio_mappings ORDER BY pin"
+            )
+            return [
+                GpioMapping(**{**values, "preset_id": values.get("preset_id")})
+                for row in rows
+                for values in [dict(row)]
+            ]
 
     def get_gpio_mapping_by_pin(self, pin: int) -> GpioMapping | None:
         with closing(connect(self.database_path)) as connection:
@@ -520,9 +681,8 @@ class DisplaySettingsStore:
             ).fetchone()
             if row is None:
                 return None
-            d = dict(row)
-            d["preset_id"] = d.get("preset_id") if d.get("preset_id") is not None else None
-            return GpioMapping(**d)
+            values = dict(row)
+            return GpioMapping(**{**values, "preset_id": values.get("preset_id")})
 
     def record_action(self, action_type: str, description: str) -> None:
         if not isinstance(action_type, str) or not action_type.strip():
@@ -533,19 +693,31 @@ class DisplaySettingsStore:
         timer_started_at = settings.timer_started_at
         with closing(connect(self.database_path)) as connection:
             connection.execute(
-                "INSERT INTO action_log (timer_started_at, action_type, description) VALUES (?, ?, ?)",
+                """
+                INSERT INTO action_log (
+                    timer_started_at,
+                    action_type,
+                    description
+                )
+                VALUES (?, ?, ?)
+                """,
                 (timer_started_at, action_type.strip(), description.strip()),
             )
             connection.commit()
 
-    def get_actions_for_current_run(self) -> list[dict]:
+    def get_actions_for_current_run(self) -> list[dict[str, object]]:
         settings = self.get()
         timer_started_at = settings.timer_started_at
         if timer_started_at is None:
             return []
         with closing(connect(self.database_path)) as connection:
             rows = connection.execute(
-                "SELECT id, timer_started_at, action_type, description, created_at FROM action_log WHERE timer_started_at = ? ORDER BY id",
+                """
+                SELECT id, timer_started_at, action_type, description, created_at
+                FROM action_log
+                WHERE timer_started_at = ?
+                ORDER BY id
+                """,
                 (timer_started_at,),
             ).fetchall()
             return [dict(row) for row in rows]
@@ -553,7 +725,7 @@ class DisplaySettingsStore:
     def add_gpio_mapping(self, pin: object, event: object, preset_id: object = None) -> None:
         if not isinstance(pin, str) or not pin.isdecimal() or not 0 <= int(pin) <= 27:
             raise ValueError("GPIO pin must be a BCM pin number from 0 to 27.")
-        if event not in ("complete-room", "send-preset"):
+        if event not in ("complete-room", "send-preset", "start-timer"):
             raise ValueError("Choose a supported GPIO event.")
         p_id = None
         if event == "send-preset":
@@ -565,12 +737,23 @@ class DisplaySettingsStore:
                 p_id = preset_id
             else:
                 raise ValueError("Invalid preset id.")
-            # check preset exists
             with closing(connect(self.database_path)) as connection:
-                row = connection.execute("SELECT id FROM hint_presets WHERE id = ?", (p_id,)).fetchone()
+                row = connection.execute(
+                    "SELECT id FROM hint_presets WHERE id = ?",
+                    (p_id,),
+                ).fetchone()
                 if row is None:
                     raise ValueError("Specified hint preset does not exist.")
         with closing(connect(self.database_path)) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            output_action = connection.execute(
+                "SELECT id FROM gpio_output_actions WHERE pin = ?",
+                (int(pin),),
+            ).fetchone()
+            if output_action is not None:
+                raise ValueError(
+                    "That BCM pin is already used by a trigger event output."
+                )
             try:
                 if p_id is None:
                     connection.execute(
@@ -592,6 +775,111 @@ class DisplaySettingsStore:
             connection.commit()
         return result.rowcount == 1
 
+    def get_gpio_output_actions(self) -> list[GpioOutputAction]:
+        with closing(connect(self.database_path)) as connection:
+            rows = connection.execute(
+                """
+                SELECT id, title, output_name, pin, state
+                FROM gpio_output_actions
+                ORDER BY id
+                """
+            )
+            return [GpioOutputAction(**dict(row)) for row in rows]
+
+    def get_gpio_output_action(self, action_id: int) -> GpioOutputAction | None:
+        with closing(connect(self.database_path)) as connection:
+            row = connection.execute(
+                """
+                SELECT id, title, output_name, pin, state
+                FROM gpio_output_actions
+                WHERE id = ?
+                """,
+                (action_id,),
+            ).fetchone()
+        return GpioOutputAction(**dict(row)) if row is not None else None
+
+    def add_gpio_output_action(
+        self,
+        label: object,
+        output_name: object,
+        state: object,
+        configured_outputs: list[str],
+    ) -> GpioOutputAction:
+        if not isinstance(label, str) or not label.strip() or len(label.strip()) > MAX_TITLE_LENGTH:
+            raise ValueError("Button name must contain 1 to 80 characters.")
+        if not isinstance(output_name, str) or output_name not in configured_outputs:
+            raise ValueError("Choose a configured GPIO output.")
+        if state not in ("on", "off"):
+            raise ValueError("Choose whether the GPIO output turns on or off.")
+        with closing(connect(self.database_path)) as connection:
+            try:
+                result = connection.execute(
+                    """
+                    INSERT INTO gpio_output_actions (title, output_name, state)
+                    VALUES (?, ?, ?)
+                    """,
+                    (label.strip(), output_name, state),
+                )
+            except sqlite3.IntegrityError as error:
+                raise ValueError("An extra button already has that name.") from error
+            connection.commit()
+        action = self.get_gpio_output_action(result.lastrowid)
+        assert action is not None
+        return action
+
+    def add_gpio_trigger_event(
+        self,
+        title: object,
+        pin: object,
+        state: object,
+    ) -> GpioOutputAction:
+        if not isinstance(title, str) or not title.strip() or len(title.strip()) > MAX_TITLE_LENGTH:
+            raise ValueError("Event title must contain 1 to 80 characters.")
+        if not isinstance(pin, str) or not pin.isdecimal() or not 0 <= int(pin) <= 27:
+            raise ValueError("GPIO pin must be a BCM pin number from 0 to 27.")
+        if state not in ("on", "off"):
+            raise ValueError("Choose whether the GPIO output turns on or off.")
+        pin_number = int(pin)
+        with closing(connect(self.database_path)) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            mapping = connection.execute(
+                "SELECT pin FROM gpio_mappings WHERE pin = ?",
+                (pin_number,),
+            ).fetchone()
+            if mapping is not None:
+                raise ValueError("That BCM pin is already linked to an input event.")
+            try:
+                result = connection.execute(
+                    """
+                    INSERT INTO gpio_output_actions (title, pin, state)
+                    VALUES (?, ?, ?)
+                    """,
+                    (title.strip(), pin_number, state),
+                )
+            except sqlite3.IntegrityError as error:
+                raise ValueError("An extra button already has that name.") from error
+            connection.commit()
+        action = self.get_gpio_output_action(result.lastrowid)
+        assert action is not None
+        return action
+
+    def has_gpio_trigger_event_for_pin(self, pin: int) -> bool:
+        with closing(connect(self.database_path)) as connection:
+            row = connection.execute(
+                "SELECT id FROM gpio_output_actions WHERE pin = ?",
+                (pin,),
+            ).fetchone()
+        return row is not None
+
+    def delete_gpio_output_action(self, action_id: int) -> bool:
+        with closing(connect(self.database_path)) as connection:
+            result = connection.execute(
+                "DELETE FROM gpio_output_actions WHERE id = ?",
+                (action_id,),
+            )
+            connection.commit()
+        return result.rowcount == 1
+
     def set_gpio_paused(self, paused: bool) -> None:
         with closing(connect(self.database_path)) as connection:
             connection.execute("UPDATE gpio_settings SET paused = ? WHERE id = 1", (paused,))
@@ -599,9 +887,17 @@ class DisplaySettingsStore:
 
     def get_gpio_activity(self) -> tuple[bool, list[GpioActivity]]:
         with closing(connect(self.database_path)) as connection:
-            paused = bool(connection.execute("SELECT paused FROM gpio_settings WHERE id = 1").fetchone()["paused"])
+            paused_row = connection.execute(
+                "SELECT paused FROM gpio_settings WHERE id = 1"
+            ).fetchone()
+            paused = bool(paused_row["paused"])
             rows = connection.execute(
-                "SELECT pin, event, accepted, triggered_at FROM gpio_events ORDER BY id DESC LIMIT 5"
+                """
+                SELECT pin, event, accepted, triggered_at
+                FROM gpio_events
+                ORDER BY id DESC
+                LIMIT 5
+                """
             )
             activity = [
                 GpioActivity(
@@ -634,6 +930,15 @@ class DisplaySettingsStore:
             )
             if clear_hints:
                 connection.execute("DELETE FROM hints")
+                connection.execute(
+                    """
+                    UPDATE display_settings
+                    SET announcement = NULL, announcement_expires_at = NULL,
+                        announcement_media_type = NULL, announcement_media_filename = NULL,
+                        announcement_media_full_screen = 0
+                    WHERE id = 1
+                    """
+                )
             connection.commit()
         return self.get()
 
@@ -687,3 +992,48 @@ class DisplaySettingsStore:
             background_colour=background_colour.lower(),
             accent_colour=accent_colour.lower(),
         )
+
+    @staticmethod
+    def _settings_from_row(row: sqlite3.Row) -> dict[str, object]:
+        values = dict(row)
+        values["announcement_media_full_screen"] = bool(
+            values.get("announcement_media_full_screen")
+        )
+        return values
+
+    @staticmethod
+    def _announcement_has_expired(expires_at: object) -> bool:
+        if not isinstance(expires_at, str) or not expires_at:
+            return False
+        try:
+            expiry_dt = datetime.fromisoformat(expires_at)
+        except Exception:
+            return False
+        try:
+            return expiry_dt <= datetime.now(timezone.utc)
+        except Exception:
+            return False
+
+    def _clear_announcement_fields(self) -> None:
+        with closing(connect(self.database_path)) as conn:
+            conn.execute(
+                """
+                UPDATE display_settings
+                SET announcement = NULL,
+                    announcement_expires_at = NULL,
+                    announcement_media_type = NULL,
+                    announcement_media_filename = NULL,
+                    announcement_media_full_screen = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """
+            )
+            conn.commit()
+
+    @staticmethod
+    def _apply_cleared_announcement_values(values: dict[str, object]) -> None:
+        values["announcement"] = None
+        values["announcement_expires_at"] = None
+        values["announcement_media_type"] = None
+        values["announcement_media_filename"] = None
+        values["announcement_media_full_screen"] = False

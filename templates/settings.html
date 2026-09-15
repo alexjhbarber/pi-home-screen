@@ -1,46 +1,48 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ current_locale }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Display settings</title>
+    <title>{{ t("settings.title") }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='2') }}">
   </head>
   <body class="admin-page">
     <main class="panel">
+      {% include "includes/admin_navigation.html" %}
       <div class="panel-header">
-        <h1>Display settings</h1>
-        <a href="{{ url_for('admin') }}">Back to controls</a>
+        <h1>{{ t("settings.title") }}</h1>
       </div>
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
       <form method="post" enctype="multipart/form-data">
         <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-        <label>Heading <input name="title" maxlength="80" value="{{ settings.title }}" required></label>
-        <label>Description <textarea name="message" maxlength="500">{{ settings.message }}</textarea></label>
+        <label>{{ t("settings.heading") }} <input name="title" maxlength="80" value="{{ settings.title }}" required></label>
+        <label>{{ t("settings.description") }} <textarea name="message" maxlength="500">{{ settings.message }}</textarea></label>
         <fieldset class="colour-control">
-          <legend>Background colour</legend>
+          <legend>{{ t("settings.background_colour") }}</legend>
           <input id="background-picker" type="color" value="{{ settings.background_colour }}">
-          <label for="background-hex">Hex value</label>
+          <label for="background-hex">{{ t("settings.hex_value") }}</label>
           <input id="background-hex" name="background_colour" pattern="#[0-9a-fA-F]{6}" value="{{ settings.background_colour }}" required>
-          <button data-accept-colour="background" type="button">Accept background colour</button>
-          <span id="background-preview" class="colour-preview" style="background: {{ settings.background_colour }}" aria-label="Background colour preview"></span>
+          <button data-accept-colour="background" type="button">{{ t("settings.accept_background") }}</button>
+          <span id="background-preview" class="colour-preview" style="background: {{ settings.background_colour }}" aria-label="{{ t("settings.background_preview") }}"></span>
         </fieldset>
         <fieldset class="colour-control">
-          <legend>Accent colour</legend>
+          <legend>{{ t("settings.accent_colour") }}</legend>
           <input id="accent-picker" type="color" value="{{ settings.accent_colour }}">
-          <label for="accent-hex">Hex value</label>
+          <label for="accent-hex">{{ t("settings.hex_value") }}</label>
           <input id="accent-hex" name="accent_colour" pattern="#[0-9a-fA-F]{6}" value="{{ settings.accent_colour }}" required>
-          <button data-accept-colour="accent" type="button">Accept accent colour</button>
-          <span id="accent-preview" class="colour-preview" style="background: {{ settings.accent_colour }}" aria-label="Accent colour preview"></span>
+          <button data-accept-colour="accent" type="button">{{ t("settings.accept_accent") }}</button>
+          <span id="accent-preview" class="colour-preview" style="background: {{ settings.accent_colour }}" aria-label="{{ t("settings.accent_preview") }}"></span>
         </fieldset>
-        <label>Background image <input name="background_image" accept=".gif,.jpeg,.jpg,.png,.webp,image/gif,image/jpeg,image/png,image/webp" type="file"></label>
+        <label>{{ t("settings.background_image") }} <input name="background_image" accept=".gif,.jpeg,.jpg,.png,.webp,image/gif,image/jpeg,image/png,image/webp" type="file"></label>
         {% if settings.background_image %}
-          <p>Current image: <a href="{{ url_for('uploaded_file', filename=settings.background_image) }}" target="_blank">{{ settings.background_image }}</a></p>
-          <label><input name="remove_background_image" type="checkbox"> Remove current background image</label>
+          <p>{{ t("settings.current_image") }} <a href="{{ url_for('uploaded_file', filename=settings.background_image) }}" target="_blank">{{ settings.background_image }}</a></p>
+          <label><input name="remove_background_image" type="checkbox"> {{ t("settings.remove_background") }}</label>
         {% endif %}
-        <button type="submit">Save display settings</button>
+        <button type="submit">{{ t("settings.save") }}</button>
       </form>
+      {% include "includes/language_selector.html" %}
     </main>
+    {% include "includes/admin_scripts.html" %}
     <script src="{{ url_for('static', filename='settings.js', v='1') }}"></script>
   </body>
 </html>

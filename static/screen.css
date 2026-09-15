@@ -113,6 +113,10 @@ body {
   max-width: 90vw;
 }
 
+.announcement[hidden] {
+  display: none;
+}
+
 .gpio-activity {
   background: rgba(0, 0, 0, .65);
   bottom: .75rem;
@@ -178,68 +182,60 @@ body {
   grid-row: span 2;
 }
 
-.control-card-editor {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem;
-  margin-bottom: 1rem;
-}
-
-.control-card-editor[hidden] {
-  display: none;
-}
-
-.control-card-editor button {
-  background: #dbeafe;
-  font-size: .85rem;
-  padding: .4rem .6rem;
-}
-
-.control-card-editor button[aria-pressed="true"] {
-  background: #005f73;
-  color: #fff;
-}
-
-.control-grid.is-editing .control-card {
-  cursor: grab;
-  outline: 2px dashed #005f73;
-  outline-offset: 3px;
-}
-
-.control-grid.is-editing .control-card.dragging {
-  opacity: .45;
-}
-
 .panel-header {
   align-items: center;
   display: flex;
   justify-content: space-between;
 }
 
-.header-actions {
+.admin-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-navigation-actions,
+.admin-navigation-summary {
   align-items: center;
   display: flex;
-  gap: .5rem;
   flex-wrap: wrap;
+  gap: .5rem;
 }
 
-.admin-nav {
-  display: flex;
-  gap: 1rem;
-  margin: 1rem 0;
+.admin-navigation-actions {
+  justify-content: flex-end;
+  width: 100%;
 }
 
-.topnav-inline {
+.admin-navigation-summary {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.admin-navigation-title {
+  color: #102a43;
+  font-size: 1.5rem;
+  margin: 0;
+  margin-right: auto;
+}
+
+.admin-navigation-timer {
   align-items: center;
   display: flex;
-  gap: .5rem;
   flex-wrap: wrap;
+  font-size: .85rem;
+  gap: .35rem;
+  margin-right: .5rem;
 }
 
-.topnav-inline a,
-.header-actions button,
-.header-actions form button,
-.header-actions a {
+.admin-navigation-timer-label {
+  font-weight: 700;
+}
+
+.admin-navigation a,
+.admin-navigation summary,
+.admin-navigation button {
   background: #f6c453;
   border: 0;
   color: #102a43;
@@ -251,36 +247,78 @@ body {
   text-decoration: none;
 }
 
-.topnav-inline a:hover,
-.header-actions button:hover,
-.header-actions form button:hover,
-.header-actions a:hover {
+.admin-navigation a:hover,
+.admin-navigation summary:hover,
+.admin-navigation button:hover {
   filter: brightness(.96);
 }
 
-.admin-nav a, .panel a {
+.admin-navigation-menu {
+  position: relative;
+}
+
+.admin-navigation-menu summary {
+  list-style: none;
+}
+
+.admin-navigation-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-navigation-menu > div {
+  background: #fff;
+  border: 1px solid #ccd6df;
+  display: none;
+  gap: .5rem;
+  min-width: max-content;
+  padding: .5rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + .25rem);
+  z-index: 1;
+}
+
+.admin-navigation-menu[open] > div {
+  display: grid;
+}
+
+.language-selector {
+  margin-top: 1.25rem;
+}
+
+.language-selector label {
+  display: inline-block;
+  margin: 0 .5rem 0 0;
+}
+
+.language-selector select {
+  margin-left: .4rem;
+}
+
+.home-screen .language-selector {
+  background: rgba(0, 0, 0, .65);
+  bottom: .75rem;
+  color: #fff;
+  padding: .5rem;
+  position: fixed;
+  right: .75rem;
+}
+
+.panel a {
   color: #005f73;
   font-weight: 700;
 }
 
-.time-stats {
-  align-items: center;
-  border: 1px solid #ccd6df;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin: 1rem 0 1.25rem;
-  padding: 1rem 1.25rem;
+.admin-navigation a,
+.admin-navigation summary {
+  color: #102a43;
 }
 
-.time-stats h2,
-.time-stats p {
-  margin: 0;
-}
-
-.time-stats p {
-  font-size: 1.25rem;
-  font-weight: 800;
+@media (max-width: 64rem) {
+  .admin-navigation-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 label {
@@ -345,6 +383,20 @@ button {
   color: #102a43;
   cursor: pointer;
   font-weight: 700;
+}
+button.btn-active {
+  background: rgba(1, 87, 1, 0.341);
+}
+button.btn-paused {
+  background: rgb(98, 1, 1);
+  color: white;
+}
+.timer-adjust-buttons button{
+  margin-top: 10px;
+  margin-right:auto;
+}
+.timer-adjust-buttons button:nth-child(-n+3){
+  margin-left:auto;
 }
 
 .inline-form {
@@ -412,7 +464,6 @@ button {
   flex: 1;
 }
 
-/* New GPIO buttons box */
 .gpio-controls {
   display: flex;
   gap: .6rem;
@@ -470,8 +521,6 @@ button {
 }
 
 @media (min-width: 64rem) {
-  /* Two-column admin layout: left column contains the announcement/hints pane,
-     right column stacks control cards vertically. */
   .control-grid.two-column-grid {
     display: grid;
     grid-template-columns: 1fr 36rem;
@@ -500,8 +549,6 @@ button {
   }
 }
 
-/* Large-screen explicit placements so the announcement pane sits left and the timer + buttons stack on the right.
-   Announcement scrolls internally if it grows beyond the viewport; right-column cards keep their positions. */
 @media (min-width: 64rem) {
   #control-grid {
     display: grid;
@@ -511,7 +558,6 @@ button {
     align-items: start;
   }
 
-  /* announcement pane occupies the entire left column */
   #control-grid > .control-card[data-control-id="announcement"] {
     grid-column: 1 / 2;
     grid-row: 1 / 4;
@@ -520,18 +566,30 @@ button {
     align-self: start;
   }
 
-  /* timer occupies the top two-right rows so it appears above the buttons */
-  #control-grid > .control-card[data-control-id="timer"] {
+  #control-grid > .control-card[data-control-id="gpio"] {
     grid-column: 2 / 3;
-    grid-row: 1 / 3;
+    grid-row: 1 / 2;
     align-self: start;
   }
 
-  /* GPIO / buttons sit beneath the timer in the right column */
-  #control-grid > .control-card[data-control-id="gpio"] {
+  #control-grid > .control-card[data-control-id="timer"] {
     grid-column: 2 / 3;
-    grid-row: 3 / 4;
+    grid-row: 2 / 4;
     align-self: start;
+  }
+}
+
+@media (max-width: 63.999rem) {
+  #control-grid > .control-card[data-control-id="announcement"] {
+    order: 1;
+  }
+
+  #control-grid > .control-card[data-control-id="gpio"] {
+    order: 2;
+  }
+
+  #control-grid > .control-card[data-control-id="timer"] {
+    order: 3;
   }
 }
 

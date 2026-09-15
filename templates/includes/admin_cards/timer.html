@@ -1,0 +1,29 @@
+<section class="control-card" data-control-id="timer">
+  <h2>{{ t("timer.title") }}</h2>
+  <form action="{{ url_for('update_timer', action='start') }}" method="post" class="inline-form">
+    <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+    <button data-timer-action="start" type="submit">{{ t("timer.start") }}</button>
+  </form>
+  <form action="{{ url_for('update_timer', action='reset') }}" method="post" class="inline-form">
+    <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+    <button data-timer-action="reset" type="submit">{{ t("timer.reset") }}</button>
+  </form>
+
+  <div class="timer-adjust">
+    <h3>{{ t("timer.adjust") }}</h3>
+    <p>{{ t("timer.description") }}</p>
+    <div class="timer-adjust-buttons">
+      <button type="button" data-adjust="60">{{ t("timer.add_minute") }}</button>
+      <button type="button" data-adjust="-60">{{ t("timer.remove_minute") }}</button>
+      <button type="button" data-adjust="30">{{ t("timer.add_seconds") }}</button>
+      <button type="button" data-adjust="-30">{{ t("timer.remove_seconds") }}</button>
+    </div>
+    <form id="timer-adjust-form" class="inline-form" method="post" action="{{ url_for('adjust_timer') }}">
+      <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+      <label>{{ t("timer.seconds_label") }}
+        <input id="timer-adjust-seconds" name="seconds" type="number" value="60" inputmode="numeric">
+      </label>
+      <button id="timer-adjust-apply" type="submit">{{ t("timer.apply") }}</button>
+    </form>
+  </div>
+</section>

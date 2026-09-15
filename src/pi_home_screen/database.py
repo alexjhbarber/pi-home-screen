@@ -3,13 +3,14 @@ from contextlib import closing
 from pathlib import Path
 
 
-def connect(database_path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(database_path)
+def connect(database_path: Path | str) -> sqlite3.Connection:
+    connection = sqlite3.connect(str(database_path))
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def initialize(database_path: Path) -> None:
+def initialize(database_path: Path | str) -> None:
+    database_path = Path(database_path)
     database_path.parent.mkdir(parents=True, exist_ok=True)
     with closing(connect(database_path)) as connection:
         connection.executescript(
@@ -76,6 +77,18 @@ def initialize(database_path: Path) -> None:
             INSERT INTO gpio_settings (id, paused) VALUES (1, 0)
             ON CONFLICT(id) DO NOTHING;
 
+            CREATE TABLE IF NOT EXISTS gpio_output_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL UNIQUE,
+                output_name TEXT,
+                pin INTEGER CHECK (pin IS NULL OR pin BETWEEN 0 AND 27),
+                state TEXT NOT NULL CHECK (state IN ('on', 'off')),
+                CHECK (
+                    (output_name IS NOT NULL AND pin IS NULL)
+                    OR (output_name IS NULL AND pin IS NOT NULL)
+                )
+            );
+
             CREATE TABLE IF NOT EXISTS action_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timer_started_at TEXT,
@@ -105,6 +118,41 @@ def initialize(database_path: Path) -> None:
         }
         if "preset_id" not in gpio_mapping_columns:
             connection.execute("ALTER TABLE gpio_mappings ADD COLUMN preset_id INTEGER")
+        gpio_output_action_columns = {
+            row["name"]: row
+            for row in connection.execute("PRAGMA table_info(gpio_output_actions)")
+        }
+        if (
+            "title" not in gpio_output_action_columns
+            or "pin" not in gpio_output_action_columns
+            or gpio_output_action_columns["output_name"]["notnull"]
+        ):
+            connection.execute(
+                "ALTER TABLE gpio_output_actions RENAME TO gpio_output_actions_legacy"
+            )
+            connection.execute(
+                """
+                CREATE TABLE gpio_output_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL UNIQUE,
+                    output_name TEXT,
+                    pin INTEGER CHECK (pin IS NULL OR pin BETWEEN 0 AND 27),
+                    state TEXT NOT NULL CHECK (state IN ('on', 'off')),
+                    CHECK (
+                        (output_name IS NOT NULL AND pin IS NULL)
+                        OR (output_name IS NULL AND pin IS NOT NULL)
+                    )
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO gpio_output_actions (id, title, output_name, state)
+                SELECT id, label, output_name, state
+                FROM gpio_output_actions_legacy
+                """
+            )
+            connection.execute("DROP TABLE gpio_output_actions_legacy")
         for column in (
             "timer_started_at TEXT",
             "room_completed_at TEXT",
@@ -119,10 +167,14 @@ def initialize(database_path: Path) -> None:
             "announcement_media_type TEXT",
             "announcement_media_filename TEXT",
             "announcement_media_full_screen INTEGER NOT NULL DEFAULT 0",
+            "notification_sound_filename TEXT",
+            "success_sound_filename TEXT",
+            "failed_sound_filename TEXT",
         ):
             name = column.split()[0]
             if name not in existing_columns:
                 connection.execute(f"ALTER TABLE display_settings ADD COLUMN {column}")
+
         hint_columns = {
             row["name"]
             for row in connection.execute("PRAGMA table_info(hints)")

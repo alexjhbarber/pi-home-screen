@@ -1,37 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ current_locale }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hint library</title>
+    <title>{{ t("hints.title") }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='screen.css') }}">
   </head>
   <body class="admin-page">
     <main class="panel">
+      {% include "includes/admin_navigation.html" %}
       <div class="panel-header">
-        <h1>Hint library</h1>
-        <a href="{{ url_for('admin') }}">Back to controls</a>
+        <h1>{{ t("hints.title") }}</h1>
       </div>
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
       <form method="post" action="{{ url_for('create_hint_preset') }}" enctype="multipart/form-data">
         <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-        <label>Title <input name="title" maxlength="80" required></label>
+        <label>{{ t("hints.field_title") }} <input name="title" maxlength="80" required></label>
         <fieldset>
-          <legend>Type</legend>
-          <label><input type="radio" name="kind" value="text" checked> Text</label>
-          <label><input type="radio" name="kind" value="image"> Image</label>
-          <label><input type="radio" name="kind" value="video"> Video</label>
+          <legend>{{ t("hints.type") }}</legend>
+          <label><input type="radio" name="kind" value="text" checked> {{ t("hints.text") }}</label>
+          <label><input type="radio" name="kind" value="image"> {{ t("hints.image") }}</label>
+          <label><input type="radio" name="kind" value="video"> {{ t("hints.video") }}</label>
         </fieldset>
-        <label>Message / caption <textarea name="message" maxlength="500"></textarea></label>
-        <label>File (required for image/video) <input name="media" type="file" accept=".gif,.jpeg,.jpg,.png,.webp,.mp4,.webm,.mov"></label>
-        <label><input type="checkbox" name="full_screen"> Show full screen when sent (image/video only)</label>
-        <button type="submit">Save hint</button>
+        <label>{{ t("hints.message") }} <textarea name="message" maxlength="500"></textarea></label>
+        <label>{{ t("hints.file") }} <input name="media" type="file" accept=".gif,.jpeg,.jpg,.png,.webp,.mp4,.webm,.mov"></label>
+        <label><input type="checkbox" name="full_screen"> {{ t("hints.full_screen") }}</label>
+        <button type="submit">{{ t("hints.save") }}</button>
       </form>
-      <h2>Saved hints</h2>
+      <h2>{{ t("hints.saved") }}</h2>
       <ul id="hint-preset-list" class="hint-history">
         {% for preset in presets %}
           <li>
-            <span class="hint-count">{{ preset.title }} ({{ preset.kind }}{% if preset.full_screen %}, full screen{% endif %})</span>
+            <span class="hint-count">{{ preset.title }} ({{ preset.kind }}{% if preset.full_screen %}, {{ t("hints.full_screen_short") }}{% endif %})</span>
             {% if preset.kind == 'text' %}
               <span>{{ preset.message }}</span>
             {% elif preset.kind == 'image' %}
@@ -43,13 +43,15 @@
             {% endif %}
             <form method="post" action="{{ url_for('delete_hint_preset', preset_id=preset.id) }}" class="inline-form">
               <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-              <button type="submit">Delete</button>
+              <button type="submit">{{ t("hints.delete") }}</button>
             </form>
           </li>
         {% else %}
-          <li id="no-hint-presets">No saved hints yet.</li>
+          <li id="no-hint-presets">{{ t("hints.none_saved") }}</li>
         {% endfor %}
       </ul>
+      {% include "includes/language_selector.html" %}
     </main>
+    {% include "includes/admin_scripts.html" %}
   </body>
 </html>

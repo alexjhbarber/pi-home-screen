@@ -1,0 +1,11 @@
+<form class="language-selector" method="get" action="{{ request.path }}">
+  <label>
+    {{ t("language.label") }}
+    <select name="locale" onchange="this.form.submit()">
+      {% for locale in supported_locales %}
+        <option value="{{ locale }}"{% if locale == current_locale %} selected{% endif %}>{{ locale_names.get(locale, locale) }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">{{ t("language.apply") }}</button>
+</form>

@@ -1,0 +1,22 @@
+<dialog id="preview-dialog">
+  <div class="preview-dialog-header">
+    <h2>{{ t("dialog.live_preview") }}</h2>
+    <button id="close-preview" type="button">{{ t("dialog.close") }}</button>
+  </div>
+  <iframe src="{{ url_for('home') }}?preview=1" title="{{ t("dialog.preview_title") }}" aria-hidden="true"></iframe>
+</dialog>
+<dialog id="completion-dialog" aria-labelledby="completion-title">
+  <div class="preview-dialog-header">
+    <h2 id="completion-title">{{ t("dialog.room_result") }}</h2>
+    <button id="close-completion" type="button">{{ t("dialog.close") }}</button>
+  </div>
+  <p id="completion-time" role="status"></p>
+  <form id="completion-form" action="{{ url_for('save_completion_result') }}" method="post">
+    <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+    <label>{{ t("dialog.group_name") }} <input name="group_name" maxlength="80" required></label>
+    <label>{{ t("dialog.group_size") }} <input name="group_size" inputmode="numeric" min="0" max="999" type="number" required></label>
+    <label>{{ t("dialog.hints_used") }} <input name="hints_used" inputmode="numeric" min="0" max="999" type="number" value="0" required></label>
+    <label>{{ t("dialog.penalties") }} <input name="penalties" inputmode="numeric" min="0" max="999" type="number" value="0" required></label>
+    <button type="submit">{{ t("dialog.save_result") }}</button>
+  </form>
+</dialog>

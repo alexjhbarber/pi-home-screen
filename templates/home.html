@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ current_locale }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Home screen</title>
+    <title>{{ t("home.page_title") }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='4') }}">
   </head>
   <body
@@ -13,19 +13,21 @@
     <main>
       <h1 id="title">{{ settings.title }}</h1>
       <p id="message">{{ settings.message }}</p>
-      <p id="timer" aria-label="60 minutes remaining">60:00</p>
+      <p id="timer" aria-label="{{ t("home.timer_aria") }}">60:00</p>
       <aside id="team-info" class="team-info" hidden>
-        <h2>Last team</h2>
+        <h2>{{ t("home.last_team") }}</h2>
         <p id="team-name"></p>
         <p id="team-details"></p>
       </aside>
     </main>
     <aside id="announcement" class="announcement" hidden aria-live="assertive">
       <p id="announcement-message"></p>
-      <img id="announcement-image" hidden alt="Announcement image">
-      <video id="announcement-video" playsinline hidden controls autoplay muted></video>
+      <img id="announcement-image" hidden alt="{{ t("home.announcement_image") }}">
+      <video id="announcement-video" playsinline hidden controls autoplay></video>
     </aside>
-    <aside id="gpio-activity" class="gpio-activity" aria-live="polite"></aside>
+    <script>window.i18n = {{ client_translations("home")|tojson }};</script>
+    <script src="{{ url_for('static', filename='i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename='home-audio.js') }}"></script>
     <script src="{{ url_for('static', filename='home.js') }}"></script>
   </body>
 </html>

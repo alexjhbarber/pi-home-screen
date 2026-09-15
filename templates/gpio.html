@@ -1,29 +1,60 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GPIO settings</title><link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='4') }}"></head>
+<html lang="{{ current_locale }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ t("gpio.title") }}</title><link rel="stylesheet" href="{{ url_for('static', filename='screen.css', v='4') }}"></head>
 <body class="admin-page"><main class="panel">
-  <div class="panel-header"><h1>GPIO events</h1><a href="{{ url_for('admin') }}">Back to controls</a></div>
+  {% include "includes/admin_navigation.html" %}
+  <div class="panel-header"><h1>{{ t("gpio.events") }}</h1></div>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <p>{% if gpio_available %}GPIO controls are active.{% else %}GPIO hardware is unavailable on this host.{% endif %}</p>
-  <form action="{{ url_for('set_gpio_paused') }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><label><input name="paused" type="checkbox" {% if paused %}checked{% endif %}> Pause GPIO events</label><button type="submit">Save pause setting</button></form>
-  <h2>Link a BCM pin to an event</h2>
+  <p>{% if gpio_available %}{{ t("gpio.active") }}{% else %}{{ t("gpio.unavailable") }}{% endif %}</p>
+  <form action="{{ url_for('set_gpio_paused') }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><label><input name="paused" type="checkbox" {% if paused %}checked{% endif %}> {{ t("gpio.pause") }}</label><button type="submit">{{ t("gpio.save_pause") }}</button></form>
+  <h2>{{ t("gpio.link") }}</h2>
   <form action="{{ url_for('add_gpio_mapping') }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-    <label>BCM pin <input name="pin" inputmode="numeric" min="0" max="27" type="number" required></label>
-    <label>Event <select name="event" id="event-select"><option value="complete-room">Complete room</option><option value="send-preset">Send hint preset</option></select></label>
-    <label id="preset-select-label" style="display:none">Preset <select name="preset_id" id="preset-select"><option value="">Select preset</option>{% for preset in hint_presets %}<option value="{{ preset.id }}">{{ preset.title }}</option>{% endfor %}</select></label>
-    <button type="submit">Link pin</button>
+    <label>{{ t("gpio.bcm_pin") }} <input name="pin" inputmode="numeric" min="0" max="27" type="number" required></label>
+    <label>{{ t("gpio.event") }} <select name="event" id="event-select"><option value="complete-room">{{ t("gpio.complete_room") }}</option><option value="start-timer">{{ t("gpio.start_timer") }}</option><option value="send-preset">{{ t("gpio.send_preset") }}</option></select></label>
+    <label id="preset-select-label" style="display:none">{{ t("gpio.preset") }} <select name="preset_id" id="preset-select"><option value="">{{ t("gpio.select_preset") }}</option>{% for preset in hint_presets %}<option value="{{ preset.id }}">{{ preset.title }}</option>{% endfor %}</select></label>
+    <button type="submit">{{ t("gpio.link_pin") }}</button>
   </form>
-  <h2>Linked pins</h2>
+  <h2>{{ t("gpio.trigger_event") }}</h2>
+  <p>{{ t("gpio.trigger_event_description") }}</p>
+  <form action="{{ url_for('add_gpio_output_action') }}" method="post">
+    <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+    <label>{{ t("gpio.event_title") }} <input name="title" maxlength="80" required></label>
+    <label>{{ t("gpio.bcm_pin") }} <input name="pin" inputmode="numeric" min="0" max="27" type="number" required></label>
+    <label>{{ t("gpio.signal") }}
+      <select name="state">
+        <option value="on">{{ t("gpio.signal_on") }}</option>
+        <option value="off">{{ t("gpio.signal_off") }}</option>
+      </select>
+    </label>
+    <label>{{ t("gpio.event") }} <input value="{{ t("gpio.trigger_event") }}" readonly></label>
+    <button type="submit">{{ t("gpio.create_trigger_event") }}</button>
+  </form>
+  <ol class="hint-history">
+    {% for action in gpio_output_actions %}
+      <li>
+        {% if action.pin is not none %}{% set target = "BCM " ~ action.pin %}{% else %}{% set target = action.output_name ~ " (BCM " ~ gpio_output_pins[action.output_name] ~ ")" %}{% endif %}
+        <span>{{ t("gpio.action_target", label=action.title, output=target, state=t("gpio.signal_" + action.state)) }}</span>
+        <form action="{{ url_for('delete_gpio_output_action', action_id=action.id) }}" method="post">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+          <button type="submit">{{ t("gpio.delete_action") }}</button>
+        </form>
+      </li>
+    {% else %}
+      <li id="no-gpio-output-actions">{{ t("gpio.no_actions") }}</li>
+    {% endfor %}
+  </ol>
+  <h2>{{ t("gpio.linked") }}</h2>
   <ol class="hint-history">
     {% for mapping in mappings %}
       <li>
         <span class="hint-count">BCM {{ mapping.pin }}</span>
-        <span>{{ mapping.event }}{% if mapping.preset_id %} — {% for p in hint_presets %}{% if p.id == mapping.preset_id %}{{ p.title }}{% break %}{% endif %}{% endfor %}{% endif %}</span>
-        <form action="{{ url_for('delete_gpio_mapping', pin=mapping.pin) }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><button type="submit">Unlink</button></form>
+        <span>{{ mapping.event }}{% if mapping.preset_id %}{% set matched = hint_presets | selectattr('id', 'equalto', mapping.preset_id) | list %}{% if matched %} — {{ matched[0].title }}{% endif %}{% endif %}</span>
+        <form action="{{ url_for('delete_gpio_mapping', pin=mapping.pin) }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}"><button type="submit">{{ t("gpio.unlink") }}</button></form>
       </li>
     {% else %}
-      <li>No GPIO pins linked.</li>
+      <li>{{ t("gpio.none_linked") }}</li>
     {% endfor %}
   </ol>
-  <h2>Recent GPIO activity</h2><ol class="hint-history">{% for entry in activity %}<li><span class="hint-count">BCM {{ entry.pin }}</span><span>{{ entry.event }} — {% if entry.accepted %}triggered{% else %}ignored{% endif %}</span><time>{{ entry.triggered_at }} UTC</time></li>{% else %}<li>No GPIO activity yet.</li>{% endfor %}</ol>
+  <h2>{{ t("gpio.recent") }}</h2><ol class="hint-history">{% for entry in activity %}<li><span class="hint-count">BCM {{ entry.pin }}</span><span>{{ entry.event }} — {% if entry.accepted %}{{ t("gpio.triggered") }}{% else %}{{ t("gpio.ignored") }}{% endif %}</span><time>{{ entry.triggered_at }} UTC</time></li>{% else %}<li>{{ t("gpio.none_activity") }}</li>{% endfor %}</ol>
   <script>document.getElementById('event-select').addEventListener('change', function(e){var v=e.target.value;document.getElementById('preset-select-label').style.display=(v==='send-preset')?'inline-block':'none';});</script>
-</main></body></html>
+  {% include "includes/language_selector.html" %}
+</main>{% include "includes/admin_scripts.html" %}</body></html>

@@ -1,0 +1,49 @@
+<section class="control-card height-2" data-control-id="announcement">
+  <h2>{{ t("announcement.title") }}</h2>
+  <section id="current-announcement" aria-live="polite" {% if not settings.announcement and not settings.announcement_media_filename %}hidden{% endif %}>
+    <h3>{{ t("announcement.current") }}</h3>
+    <p id="current-announcement-message">{{ settings.announcement or "" }}</p>
+    <img id="current-announcement-image" class="hint-media-preview" src="{% if settings.announcement_media_type == 'image' %}{{ url_for('uploaded_file', filename=settings.announcement_media_filename) }}{% endif %}" alt="{{ t("announcement.hint_image") }}" {% if settings.announcement_media_type != 'image' %}hidden{% endif %}>
+    <video id="current-announcement-video" class="hint-media-preview" src="{% if settings.announcement_media_type == 'video' %}{{ url_for('uploaded_file', filename=settings.announcement_media_filename) }}{% endif %}" controls {% if settings.announcement_media_type != 'video' %}hidden{% endif %}></video>
+    <form id="cancel-announcement-form" action="{{ url_for('cancel_announcement') }}" method="post" class="inline-form">
+      <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+      <button type="submit">{{ t("announcement.cancel") }}</button>
+    </form>
+  </section>
+  <form id="announcement-form" action="{{ url_for('send_announcement') }}" method="post">
+    <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+    <label>{{ t("announcement.message") }} <textarea name="message" maxlength="500" required></textarea></label>
+    <button id="send-hint" type="submit">{{ t("announcement.send") }}</button>
+  </form>
+  <div class="preset-hint-picker">
+    <h3>{{ t("announcement.saved_title") }}</h3>
+    <label>{{ t("announcement.choose") }}
+      <select id="hint-preset-select">
+        <option value="">{{ t("announcement.select") }}</option>
+        {% for preset in hint_presets %}
+          <option value="{{ preset.id }}" data-kind="{{ preset.kind }}">{{ preset.title }} ({{ preset.kind }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button id="send-hint-preset" type="button" data-csrf="{{ csrf_token }}">{{ t("announcement.send_saved") }}</button>
+    <p><a href="{{ url_for('hint_library') }}">{{ t("announcement.manage") }}</a></p>
+  </div>
+  <h3>{{ t("announcement.history") }}</h3>
+  <ol id="hint-history" class="hint-history">
+    {% for hint in hints %}
+      <li>
+        <span class="hint-count">{{ t("js.hint_number", number=loop.index) }}</span>
+        <span>{{ hint.message }}</span>
+        {% if hint.media_type == 'image' %}
+          <img class="hint-media-preview" src="{{ url_for('uploaded_file', filename=hint.media_filename) }}" alt="{{ t("announcement.hint_image") }}">
+        {% elif hint.media_type == 'video' %}
+          <video class="hint-media-preview" src="{{ url_for('uploaded_file', filename=hint.media_filename) }}" controls></video>
+        {% endif %}
+        <time class="hint-timer" datetime="PT{{ hint.timer_remaining_seconds }}S">{{ t("js.timer_value", value="%02d:%02d"|format(hint.timer_remaining_seconds // 60, hint.timer_remaining_seconds % 60)) }}</time>
+        <time datetime="{{ hint.given_at }}">{{ hint.given_at }} UTC</time>
+      </li>
+    {% else %}
+      <li id="no-hints">{{ t("announcement.none_sent") }}</li>
+    {% endfor %}
+  </ol>
+</section>
