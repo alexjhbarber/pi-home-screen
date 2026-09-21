@@ -54,6 +54,8 @@ sudo apt install -y \
   python3-dev \
   python3-venv \
   python3-lgpio \
+  alsa-utils \
+  libraspberrypi-bin \
   swig \
   liblgpio-dev \
   chromium \
@@ -126,8 +128,9 @@ ADMIN_PASSWORD=replace-this-with-a-long-unique-password
 # Optional output pins, using BCM numbering:
 # GPIO_OUTPUTS={"door-light":17,"buzzer":27}
 
-# Optional room-complete input, using BCM numbering:
+# Optional GPIO inputs, using BCM numbering:
 # GPIO_INPUTS={"complete-room":17}
+# GPIO_INPUTS={"complete-room":17,"display-toggle":27}
 EOF
 
 sudo chown kiosk:kiosk /etc/pi-home-screen/environment
@@ -209,6 +212,9 @@ exec /usr/bin/chromium \
   --noerrdialogs \
   --disable-infobars \
   --disable-session-crashed-bubble \
+  --autoplay-policy=no-user-gesture-required \
+  --autoplay-policy=no-user-gesture-required \
+  --alsa-output-device=hdmi:CARD=vc4hdmi,DEV=0 \
   --start-maximized \
   --window-position=0,0 \
   --window-size=1920,1080 \
@@ -258,6 +264,97 @@ sudo reboot
 
 After reboot, systemd starts the app, logs in as `kiosk`, starts X11, and
 opens the home screen in Chromium.
+
+## 10. Configure HDMI audio and monitor power
+Reboot after saving the file. Verify that ALSA can see an HDMI device:
+
+```bash
+aplay -l
+aplay -L
+speaker-test -c 2 -t wav
+```
+```bash
+speaker-test -D hdmi:CARD=vc4hdmi0,DEV=0 -c 2 -t wav
+```
+```bash
+sudo -u kiosk tee /home/kiosk/.asoundrc >/dev/null <<'EOF'
+pcm.!default {
+    type plug
+    slave.pcm "hdmi:CARD=vc4hdmi0,DEV=0"
+}
+
+ctl.!default {
+    type hw
+    card vc4hdmi0
+}
+EOF
+```
+
+```bash
+sudo nano /boot/firmware/config.txt
+```
+
+On older Raspberry Pi OS releases, edit `/boot/config.txt` instead. Add these
+lines if they are not already present:
+
+```ini
+hdmi_force_hotplug=1
+hdmi_drive=2
+```
+
+
+
+On systems using the Raspberry Pi `vc4` HDMI driver, the HDMI audio device is
+typically exposed as `vc4hdmi0`, device `0`. Test it directly with:
+
+```bash
+speaker-test -D hdmi:CARD=vc4hdmi0,DEV=0 -c 2 -t wav
+```
+
+If that device name is not listed by `aplay -L`, use the exact `CARD=` and
+`DEV=` values shown by the command output instead.
+
+The home screen uses Chromium audio playback for notification, completion,
+and failure sounds. The `--autoplay-policy=no-user-gesture-required` option in
+the X11 startup command allows sounds received through live updates to play
+without a separate click on the kiosk screen. Upload and test the sound files
+from **Admin > Sounds**.
+
+The admin page's monitor button uses `vcgencmd display_power` and displays
+**Monitor on** or **Monitor off**. Confirm the command is installed and works
+as the kiosk account:
+
+```bash
+command -v vcgencmd
+sudo -u kiosk vcgencmd display_power
+```
+
+If the command is missing:
+
+```bash
+sudo apt update
+sudo apt install -y libraspberrypi-bin
+sudo systemctl restart pi-home-screen.service
+```
+
+To connect a physical monitor toggle button, set this in
+`/etc/pi-home-screen/environment`:
+
+```ini
+GPIO_INPUTS={"display-toggle":17}
+```
+
+Use an unused BCM pin and connect the button according to the GPIO Zero
+button wiring. Apply the environment change with:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart pi-home-screen.service
+```
+
+The web control and GPIO control both toggle the same HDMI output. The
+monitor's own standby or backlight behavior can vary by model; the control
+switches the Raspberry Pi HDMI signal using `vcgencmd`.
 
 ## Troubleshooting encountered during setup
 
@@ -323,6 +420,34 @@ sudo apt install -y xinit xserver-xorg x11-xserver-utils
 command -v startx
 sudo reboot
 ```
+
+### HDMI audio is missing or sounds are blocked
+
+Check that the HDMI output is detected and that the kiosk user belongs to the
+audio group:
+
+```bash
+aplay -l
+groups kiosk
+```
+
+If no HDMI device is listed, confirm `hdmi_force_hotplug=1` and
+`hdmi_drive=2` are present in `/boot/firmware/config.txt` (or
+`/boot/config.txt` on older systems), then reboot. If the device is listed but
+the kiosk is silent, confirm `--autoplay-policy=no-user-gesture-required` is in
+`/home/kiosk/.xinitrc` and restart the X11 session.
+
+### Monitor power button is disabled
+
+The button is disabled when `vcgencmd` is unavailable. Check it with:
+
+```bash
+command -v vcgencmd
+sudo -u kiosk vcgencmd display_power
+```
+
+Install `libraspberrypi-bin` if necessary, then restart
+`pi-home-screen.service`.
 
 The expected command path is `/usr/bin/startx`. Do not run `startx` through
 SSH; it must start from the kiosk account's automatic login on the Pi's local
