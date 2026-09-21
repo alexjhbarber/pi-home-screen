@@ -22,6 +22,7 @@ let videoAnnouncementActive = false;
 let currentVideoFilename = null;
 let currentVideoAnnouncementExpiresAt = null;
 let previousAnnouncementVisible = false;
+let previousAnnouncementKey = null;
 let previousMessage = null;
 let previousTitle = null;
 let previousRoomComplete = null;
@@ -30,6 +31,16 @@ function updateDisplay(settings) {
   soundManager.updateFromSettings(settings);
 
   const hasAnnouncementNow = Boolean(settings.announcement || settings.announcement_media_filename);
+  const announcementKey = [
+    settings.announcement || "",
+    settings.announcement_expires_at || "",
+    settings.announcement_media_type || "",
+    settings.announcement_media_filename || "",
+  ].join("|");
+  if (previousAnnouncementKey !== null && announcementKey !== previousAnnouncementKey) {
+    previousAnnouncementVisible = false;
+  }
+  previousAnnouncementKey = announcementKey;
   if (previousMessage !== null && settings.message !== previousMessage && !hasAnnouncementNow) {
     soundManager.playHint();
   }

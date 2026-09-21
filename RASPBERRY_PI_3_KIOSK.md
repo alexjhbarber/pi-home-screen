@@ -1,15 +1,9 @@
 # Raspberry Pi Zero W Lite Kiosk Setup
 
-This guide documents deployment on Raspberry Pi OS Lite (32-bit), using a
+This guide documents deployment on Raspberry Pi OS Lite (64-bit), using a
 minimal X11 session instead of a desktop environment. A **Raspberry Pi Zero 2
 W or newer** is required for Chromium kiosk mode.
 
-> [!WARNING]
-> An original Raspberry Pi Zero W does not support Chromium: its ARMv6 CPU
-> lacks the required NEON SIMD extensions. The `/usr/bin/chromium` launcher
-> displays a hardware warning and exits, leaving no browser on the screen.
-> It can run the Flask service, but it cannot provide the Chromium kiosk
-> display. Use a Pi Zero 2 W or newer for this guide's kiosk steps.
 
 > [!NOTE]
 > On a Pi Zero 2 W, the Flask application can still take 30-40 seconds to
@@ -215,6 +209,9 @@ exec /usr/bin/chromium \
   --noerrdialogs \
   --disable-infobars \
   --disable-session-crashed-bubble \
+  --start-maximized \
+  --window-position=0,0 \
+  --window-size=1920,1080 \
   --kiosk \
   --incognito \
   http://127.0.0.1:5000/

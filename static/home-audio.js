@@ -1,17 +1,32 @@
 window.HomeAudio = (() => {
-  function closeContextSoon(context, delay) {
-    setTimeout(() => {
-      try {
-        context.close();
-      } catch (error) {}
-    }, delay);
+  let audioContext = null;
+
+  function getAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!audioContext) {
+      audioContext = new AudioCtx();
+    }
+    return audioContext;
+  }
+
+  function withAudioContext(callback) {
+    try {
+      const context = getAudioContext();
+      if (!context) return;
+      const resumed = context.resume();
+      if (resumed && typeof resumed.then === "function") {
+        resumed.then(() => callback(context)).catch(() => {});
+      } else {
+        callback(context);
+      }
+    } catch (error) {
+      console.warn("Audio unavailable", error);
+    }
   }
 
   function playHintOscillator() {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const context = new AudioCtx();
+    withAudioContext((context) => {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
 
@@ -24,17 +39,11 @@ window.HomeAudio = (() => {
       oscillator.start();
       oscillator.stop(context.currentTime + 0.18);
       gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.18);
-      closeContextSoon(context, 500);
-    } catch (error) {
-      console.warn("Audio unavailable", error);
-    }
+    });
   }
 
   function playSuccessOscillator() {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const context = new AudioCtx();
+    withAudioContext((context) => {
       const highOscillator = context.createOscillator();
       const lowOscillator = context.createOscillator();
       const gain = context.createGain();
@@ -53,17 +62,11 @@ window.HomeAudio = (() => {
       highOscillator.stop(context.currentTime + 0.45);
       lowOscillator.stop(context.currentTime + 0.45);
       gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.45);
-      closeContextSoon(context, 700);
-    } catch (error) {
-      console.warn("Audio unavailable", error);
-    }
+    });
   }
 
   function playFailedOscillator() {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const context = new AudioCtx();
+    withAudioContext((context) => {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
 
@@ -76,16 +79,14 @@ window.HomeAudio = (() => {
       oscillator.start();
       oscillator.stop(context.currentTime + 0.35);
       gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.35);
-      closeContextSoon(context, 600);
-    } catch (error) {
-      console.warn("Audio unavailable", error);
-    }
+    });
   }
 
   function playUploadedSound(url, fallback) {
     try {
       const audio = new Audio(url);
       audio.preload = "auto";
+      audio.addEventListener("ended", () => audio.remove());
       const playback = audio.play();
       if (playback && typeof playback.then === "function") {
         playback.catch(() => fallback());
