@@ -9,7 +9,7 @@
   <h2>{{ t("gpio.link") }}</h2>
   <form action="{{ url_for('add_gpio_mapping') }}" method="post"><input name="csrf_token" type="hidden" value="{{ csrf_token }}">
     <label>{{ t("gpio.bcm_pin") }} <input name="pin" inputmode="numeric" min="0" max="27" type="number" required></label>
-    <label>{{ t("gpio.event") }} <select name="event" id="event-select"><option value="complete-room">{{ t("gpio.complete_room") }}</option><option value="start-timer">{{ t("gpio.start_timer") }}</option><option value="send-preset">{{ t("gpio.send_preset") }}</option></select></label>
+    <label>{{ t("gpio.event") }} <select name="event" id="event-select"><option value="complete-room">{{ t("gpio.complete_room") }}</option><option value="start-timer">{{ t("gpio.start_timer") }}</option><option value="display-toggle">{{ t("gpio.display_toggle") }}</option><option value="send-preset">{{ t("gpio.send_preset") }}</option></select></label>
     <label id="preset-select-label" style="display:none">{{ t("gpio.preset") }} <select name="preset_id" id="preset-select"><option value="">{{ t("gpio.select_preset") }}</option>{% for preset in hint_presets %}<option value="{{ preset.id }}">{{ preset.title }}</option>{% endfor %}</select></label>
     <button type="submit">{{ t("gpio.link_pin") }}</button>
   </form>

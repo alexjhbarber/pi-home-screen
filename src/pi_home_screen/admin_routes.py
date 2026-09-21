@@ -1,4 +1,5 @@
 import secrets
+import subprocess
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,6 +29,7 @@ from .uploads import (
 def register_admin_routes(app: Flask, runtime: DisplayRuntime) -> None:
     store = runtime.store
     gpio = runtime.gpio
+    display_power = runtime.display_power
     upload_folder = Path(app.config["UPLOAD_FOLDER"])
 
     def require_admin() -> None:
@@ -61,6 +63,7 @@ def register_admin_routes(app: Flask, runtime: DisplayRuntime) -> None:
             gpio_outputs=gpio.output_names(),
             gpio_output_actions=store.get_gpio_output_actions(),
             gpio_available=gpio.available,
+            display_power_available=display_power.available,
             gpio_paused=gpio_paused,
             csrf_token=csrf_token(),
         )
@@ -93,6 +96,7 @@ def register_admin_routes(app: Flask, runtime: DisplayRuntime) -> None:
             "activity": activity,
             "csrf_token": csrf_token(),
             "gpio_available": gpio.available,
+            "display_power_available": display_power.available,
             "gpio_outputs": gpio.output_names(),
             "gpio_output_pins": gpio.output_pins(),
             "gpio_output_actions": store.get_gpio_output_actions(),
@@ -425,6 +429,18 @@ def register_admin_routes(app: Flask, runtime: DisplayRuntime) -> None:
         if request.is_json:
             return jsonify(paused=is_paused)
         return redirect(url_for("gpio_settings"))
+
+    @app.post("/admin/display/toggle")
+    def toggle_display_power() -> Response:
+        require_admin()
+        require_csrf()
+        try:
+            is_on = runtime.toggle_display_power()
+        except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+            return jsonify(error=str(error)), 503
+        if request.is_json:
+            return jsonify(display_on=is_on)
+        return redirect(url_for("admin"))
 
     @app.post("/admin/stats")
     def add_statistic() -> Response:

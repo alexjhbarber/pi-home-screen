@@ -8,6 +8,7 @@ from flask import Flask, Response, jsonify, redirect, request, url_for
 from .admin_routes import register_admin_routes
 from .database import initialize
 from .display import DisplaySettingsStore
+from .display_power import DisplayPowerController
 from .events import DisplayUpdateBroker
 from .gpio import GpioController
 from .localization import register_localization
@@ -55,15 +56,18 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         output_pins=_parse_pin_mapping(app.config["GPIO_OUTPUTS"], "GPIO_OUTPUTS"),
         input_pins={},
     )
+    display_power = DisplayPowerController()
 
     app.extensions["display_store"] = store
     app.extensions["display_broker"] = broker
     app.extensions["gpio"] = gpio
+    app.extensions["display_power"] = display_power
     runtime = DisplayRuntime(
         app=app,
         store=store,
         broker=broker,
         gpio=gpio,
+        display_power=display_power,
         configured_gpio_inputs=configured_gpio_inputs,
     )
     app.extensions["display_runtime"] = runtime
@@ -141,8 +145,9 @@ def _parse_pin_mapping(value: str | dict[str, int], setting_name: str) -> dict[s
 
 def _parse_gpio_input_mapping(value: str | dict[str, int]) -> dict[str, int]:
     mapping = _parse_pin_mapping(value, "GPIO_INPUTS")
-    if set(mapping) - {"complete-room", "start-timer"}:
+    if set(mapping) - {"complete-room", "start-timer", "display-toggle"}:
         raise RuntimeError(
-            "GPIO_INPUTS supports only the 'complete-room' and 'start-timer' events."
+            "GPIO_INPUTS supports only the 'complete-room', 'start-timer', "
+            "and 'display-toggle' events."
         )
     return mapping

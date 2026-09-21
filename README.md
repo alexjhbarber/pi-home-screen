@@ -55,6 +55,18 @@ Use an unused GPIO such as BCM 17 (physical pin 11). Do not use BCM 2 or 3:
 they are I2C pins with board pull-ups and may be claimed by the operating
 system, preventing the application from receiving a button press.
 
+The admin controls include a **Toggle monitor power** button. On Raspberry Pi
+OS, it uses `vcgencmd display_power` to switch the kiosk HDMI output off or on.
+The same operation can be assigned to a physical GPIO button by adding
+`display-toggle` to `GPIO_INPUTS`, for example:
+
+```bash
+export GPIO_INPUTS='{"display-toggle": 17}'
+```
+
+The `vcgencmd` command must be available to the account running the app. The
+web button is disabled on hosts where it is not installed.
+
 GPIO Zero controls the pins on Raspberry Pi OS. On a development computer,
 the app logs that physical GPIO is unavailable and continues without touching
 hardware. GPIO uses 3.3V logic only: do not connect relays, motors, or other

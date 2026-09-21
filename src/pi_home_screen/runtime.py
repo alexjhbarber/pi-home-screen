@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
+import subprocess
 from threading import Timer
 
 from flask import Flask
 
 from .display import DisplaySettings, DisplaySettingsStore
+from .display_power import DisplayPowerController
 from .events import DisplayUpdateBroker
 from .gpio import GpioController
 
@@ -15,12 +17,14 @@ class DisplayRuntime:
         store: DisplaySettingsStore,
         broker: DisplayUpdateBroker,
         gpio: GpioController,
+        display_power: DisplayPowerController,
         configured_gpio_inputs: dict[str, int],
     ) -> None:
         self.app = app
         self.store = store
         self.broker = broker
         self.gpio = gpio
+        self.display_power = display_power
         self._configured_gpio_inputs = configured_gpio_inputs
         self._auto_hint_timer: Timer | None = None
 
@@ -73,10 +77,13 @@ class DisplayRuntime:
                 return
             if mapping.event == "send-preset":
                 self._send_gpio_preset(pin, mapping.preset_id)
-        except ValueError:
+                return
+            if mapping.event == "display-toggle":
+                self.toggle_display_power(pin)
+        except (ValueError, RuntimeError, OSError, subprocess.CalledProcessError):
             self.store.record_gpio_event(pin, event, accepted=False)
             self.app.logger.warning(
-                "Ignored GPIO room-complete input because the timer is not running."
+                "Ignored GPIO event %s on pin %s.", event, pin
             )
 
     def schedule_automatic_hint(self, settings: DisplaySettings) -> None:
@@ -131,10 +138,25 @@ class DisplayRuntime:
             self._start_timer_from_gpio(pin, event)
             return
         if event != "complete-room":
+            if event == "display-toggle":
+                self.toggle_display_power(pin)
             return
         settings = self.store.complete_room()
         self.publish(settings)
         self.store.record_gpio_event(pin, event, accepted=True)
+
+    def toggle_display_power(self, pin: int | None = None) -> bool:
+        try:
+            is_on = self.display_power.toggle()
+        except (RuntimeError, OSError, subprocess.CalledProcessError):
+            if pin is not None:
+                self.store.record_gpio_event(pin, "display-toggle", accepted=False)
+            self.app.logger.exception("Failed to toggle Raspberry Pi display power")
+            raise
+        if pin is not None:
+            self.store.record_gpio_event(pin, "display-toggle", accepted=True)
+        self.record_action("display", f"Turned HDMI display {'on' if is_on else 'off'}")
+        return is_on
 
     def _start_timer_from_gpio(self, pin: int, event: str) -> None:
         settings = self.store.start_timer_if_not_running()

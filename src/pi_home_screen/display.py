@@ -766,7 +766,7 @@ class DisplaySettingsStore:
     def add_gpio_mapping(self, pin: object, event: object, preset_id: object = None) -> None:
         if not isinstance(pin, str) or not pin.isdecimal() or not 0 <= int(pin) <= 27:
             raise ValueError("GPIO pin must be a BCM pin number from 0 to 27.")
-        if event not in ("complete-room", "send-preset", "start-timer"):
+        if event not in ("complete-room", "send-preset", "start-timer", "display-toggle"):
             raise ValueError("Choose a supported GPIO event.")
         p_id = None
         if event == "send-preset":

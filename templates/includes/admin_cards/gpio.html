@@ -13,6 +13,13 @@
       {% if settings.timer_paused_at %}{{ t("controls.resume_timer") }}{% else %}{{ t("controls.pause_timer") }}{% endif %}
     </button>
 
+    <form action="{{ url_for('toggle_display_power') }}" method="post" class="inline-form">
+      <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+      <button id="toggle-display-power" type="submit" {% if not display_power_available %}disabled{% endif %}>
+        {{ t("controls.toggle_display") }}
+      </button>
+    </form>
+
   </div>
 
   <section class="gpio-extra-buttons" aria-labelledby="gpio-extra-buttons-title">
