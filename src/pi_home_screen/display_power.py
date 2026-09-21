@@ -15,13 +15,7 @@ class DisplayPowerController:
     def toggle(self) -> bool:
         if self.command is None:
             raise RuntimeError("Raspberry Pi display control is unavailable.")
-        result = subprocess.run(
-            [self.command, "display_power"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        current_state = result.stdout.strip().endswith("=1")
+        current_state = self.is_on()
         subprocess.run(
             [self.command, "display_power", "1" if not current_state else "0"],
             check=True,
@@ -29,3 +23,14 @@ class DisplayPowerController:
             text=True,
         )
         return not current_state
+
+    def is_on(self) -> bool:
+        if self.command is None:
+            raise RuntimeError("Raspberry Pi display control is unavailable.")
+        result = subprocess.run(
+            [self.command, "display_power"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip().endswith("=1")

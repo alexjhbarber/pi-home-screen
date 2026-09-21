@@ -24,6 +24,7 @@ class DisplaySettings:
     timer_started_at: str | None = None
     timer_paused_at: str | None = None
     room_completed_at: str | None = None
+    room_failed_at: str | None = None
     announcement: str | None = None
     announcement_expires_at: str | None = None
     background_image: str | None = None
@@ -131,6 +132,7 @@ class DisplaySettingsStore:
                     title, message, background_colour, accent_colour, timer_started_at,
                     timer_paused_at,
                     room_completed_at,
+                    room_failed_at,
                     announcement, announcement_expires_at, background_image,
                     auto_hint_remaining_minutes, auto_hint_message,
                     extra_time_seconds, penalty_time_seconds,
@@ -231,6 +233,7 @@ class DisplaySettingsStore:
                 """
                 UPDATE display_settings
                 SET timer_started_at = ?, timer_paused_at = NULL, room_completed_at = NULL,
+                room_failed_at = NULL,
                     extra_time_seconds = 0, penalty_time_seconds = 0,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1 AND timer_started_at IS NULL
@@ -255,10 +258,29 @@ class DisplaySettingsStore:
             connection.execute(
                 """
                 UPDATE display_settings
-                SET timer_paused_at = NULL, room_completed_at = ?, updated_at = CURRENT_TIMESTAMP
+                SET timer_paused_at = NULL, room_completed_at = ?, room_failed_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1
                 """,
                 (completed_at,),
+            )
+            connection.commit()
+        return self.get()
+
+    def fail_room(self) -> DisplaySettings:
+        settings = self.get()
+        if settings.timer_started_at is None:
+            raise ValueError("Start the timer before failing the room.")
+        failed_at = settings.timer_paused_at or datetime.now(timezone.utc).isoformat()
+        with closing(connect(self.database_path)) as connection:
+            connection.execute(
+                """
+                UPDATE display_settings
+                SET timer_paused_at = NULL, room_completed_at = NULL, room_failed_at = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """,
+                (failed_at,),
             )
             connection.commit()
         return self.get()
@@ -963,6 +985,7 @@ class DisplaySettingsStore:
                 """
                 UPDATE display_settings
                 SET timer_started_at = ?, timer_paused_at = NULL, room_completed_at = NULL,
+                    room_failed_at = NULL,
                     extra_time_seconds = 0, penalty_time_seconds = 0,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1

@@ -2,7 +2,11 @@
   <div class="gpio-controls">
     <form action="{{ url_for('complete_room') }}" method="post" class="inline-form">
       <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-      <button id="complete-room" type="submit">{{ t("controls.complete_room") }}</button>
+      <button id="complete-room" class="btn-active" type="submit">{{ t("controls.complete_room") }}</button>
+    </form>
+    <form action="{{ url_for('fail_room') }}" method="post" class="inline-form">
+      <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
+      <button id="fail-room" class="btn-paused" type="submit">{{ t("controls.fail_room") }}</button>
     </form>
 
     <button id="toggle-gpio-pause" type="button" data-paused="{{ gpio_paused|tojson }}" class="{{ 'btn-paused' if gpio_paused else 'btn-active' }}">
@@ -15,8 +19,8 @@
 
     <form action="{{ url_for('toggle_display_power') }}" method="post" class="inline-form">
       <input name="csrf_token" type="hidden" value="{{ csrf_token }}">
-      <button id="toggle-display-power" type="submit" {% if not display_power_available %}disabled{% endif %}>
-        {{ t("controls.toggle_display") }}
+      <button id="toggle-display-power" class="{{ 'btn-active' if display_power_on else 'btn-paused' }}" type="submit" {% if not display_power_available %}disabled{% endif %}>
+        {% if display_power_on %}{{ t("controls.monitor_on") }}{% else %}{{ t("controls.monitor_off") }}{% endif %}
       </button>
     </form>
 

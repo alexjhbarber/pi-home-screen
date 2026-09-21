@@ -157,6 +157,7 @@ def initialize(database_path: Path | str) -> None:
             "timer_started_at TEXT",
             "timer_paused_at TEXT",
             "room_completed_at TEXT",
+            "room_failed_at TEXT",
             "announcement TEXT",
             "announcement_expires_at TEXT",
             "background_image TEXT",

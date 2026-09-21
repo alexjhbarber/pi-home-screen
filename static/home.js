@@ -26,6 +26,7 @@ let previousAnnouncementKey = null;
 let previousMessage = null;
 let previousTitle = null;
 let previousRoomComplete = null;
+let previousRoomFailed = null;
 
 function updateDisplay(settings) {
   soundManager.updateFromSettings(settings);
@@ -61,6 +62,7 @@ function updateDisplay(settings) {
   timerStartedAt = settings.timer_started_at;
   timerPausedAt = settings.timer_paused_at;
   roomCompletedAt = settings.room_completed_at;
+  const roomFailedAt = settings.room_failed_at;
   announcementExpiresAt = settings.announcement_expires_at;
   extraTimeSeconds = settings.extra_time_seconds || 0;
   penaltyTimeSeconds = settings.penalty_time_seconds || 0;
@@ -70,6 +72,7 @@ function updateDisplay(settings) {
   updateLatestResult(settings.latest_result);
   updateTimer();
   updateRoomCompletion();
+  updateRoomFailure(roomFailedAt);
   updateAnnouncement();
 }
 
@@ -171,6 +174,15 @@ function updateRoomCompletion() {
   document.body.classList.toggle("room-complete", isComplete);
   if (previousRoomComplete !== null && !previousRoomComplete && isComplete) {
     soundManager.playSuccess();
+  }
+
+  function updateRoomFailure(roomFailedAt) {
+    const isFailed = Boolean(roomFailedAt);
+    document.body.classList.toggle("room-failed", isFailed);
+    if (previousRoomFailed !== null && !previousRoomFailed && isFailed) {
+      soundManager.playFailed();
+    }
+    previousRoomFailed = isFailed;
   }
 
   if (!isComplete) {

@@ -27,6 +27,12 @@ body {
   --background-image: none !important;
 }
 
+.home-screen.room-failed {
+  --accent-colour: #ffffff !important;
+  --background-colour: #991b1b !important;
+  --background-image: none !important;
+}
+
 .home-screen main {
   margin: 0 auto;
   max-width: 90vw;
